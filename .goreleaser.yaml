@@ -1,0 +1,167 @@
+# GoReleaser configuration for Taikun MCP Server
+# This configuration builds cross-platform binaries and creates GitHub releases
+
+version: 2
+
+before:
+  hooks:
+    # Clean up before building
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: "taikun-mcp"
+    binary: "taikun-mcp"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    # Ignore specific combinations that don't make sense
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+
+archives:
+  - id: "taikun-mcp"
+    builds:
+      - "taikun-mcp"
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - '^style:'
+      - Merge pull request
+      - Merge branch
+      - go mod tidy
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: 'Performance improvements'
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  # Repository to release to
+  github:
+    owner: itera-io
+    name: taikun-mcp
+  
+  # Create the release as a draft first
+  draft: false
+  
+  # Set it as prerelease if version contains alpha, beta or rc
+  prerelease: auto
+  
+  # Release name template
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  
+  # Header and footer for the release notes
+  header: |
+    ## Taikun MCP Server v{{ .Version }}
+    
+    This release provides MCP (Model Context Protocol) tools for managing Taikun Cloud resources.
+    
+    ### Installation
+    
+    Download the appropriate binary for your platform from the assets below, or use one of the installation methods:
+    
+    #### Using curl (Linux/macOS):
+    ```bash
+    # Linux x86_64
+    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Linux_x86_64.tar.gz | tar xz
+    
+    # macOS x86_64
+    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Darwin_x86_64.tar.gz | tar xz
+    
+    # macOS ARM64 (Apple Silicon)
+    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Darwin_arm64.tar.gz | tar xz
+    ```
+    
+    #### Using PowerShell (Windows):
+    ```powershell
+    Invoke-WebRequest -Uri "https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Windows_x86_64.zip" -OutFile "taikun-mcp.zip"
+    Expand-Archive -Path "taikun-mcp.zip" -DestinationPath .
+    ```
+    
+    ### What's Changed
+  
+  footer: |
+    
+    ---
+    
+    **Full Changelog**: https://github.com/itera-io/taikun-mcp/compare/{{ .PreviousTag }}...{{ .Tag }}
+    
+    For setup instructions and documentation, see the [README](https://github.com/itera-io/taikun-mcp/blob/main/README.md).
+
+# Universal binaries for macOS (optional, requires Pro version)
+# universal_binaries:
+#   - replace: true
+
+# Homebrew tap (optional)
+# brews:
+#   - repository:
+#       owner: itera-io
+#       name: homebrew-tap
+#     folder: Formula
+#     homepage: "https://github.com/itera-io/taikun-mcp"
+#     description: "MCP server for Taikun Cloud Platform"
+#     license: "MIT"
+#     test: |
+#       system "#{bin}/taikun-mcp", "--version"
+
+# Docker images (optional)
+# dockers:
+#   - image_templates:
+#       - "ghcr.io/itera-io/taikun-mcp:{{ .Version }}"
+#       - "ghcr.io/itera-io/taikun-mcp:latest"
+#     dockerfile: Dockerfile
+#     build_flag_templates:
+#       - "--pull"
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"

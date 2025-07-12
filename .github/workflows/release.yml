@@ -1,0 +1,75 @@
+# GitHub Actions workflow for GoReleaser
+# This workflow builds and releases binaries when a tag is pushed
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch full history for changelog generation
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+      
+      - name: Verify dependencies
+        run: |
+          go mod verify
+          go mod download
+      
+      - name: Run tests
+        run: |
+          go test -v ./...
+      
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: Add additional tokens if needed for cross-repo operations
+          # HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+  # Optional: Build and test on multiple platforms before release
+  test-platforms:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        go-version: ['1.24']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      
+      - name: Build
+        run: go build -v ./...
+      
+      - name: Test
+        run: go test -v ./...
