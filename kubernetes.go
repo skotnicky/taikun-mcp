@@ -29,6 +29,8 @@ type GetKubeConfigArgs struct {
 	ProjectID int32 `json:"projectId" jsonschema:"required,description=The project ID to get the kubeconfig for"`
 }
 
+type ListKubeConfigRolesArgs struct{}
+
 func deployKubernetesResources(client *taikungoclient.Client, args DeployKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
@@ -129,4 +131,34 @@ func getKubeConfig(client *taikungoclient.Client, args GetKubeConfigArgs) (*mcp_
 	}
 
 	return createJSONResponse(resp), nil
+}
+
+func listKubeConfigRoles(client *taikungoclient.Client, _ ListKubeConfigRolesArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+
+	roles, httpResponse, err := client.Client.KubeConfigRoleAPI.KubeconfigroleList(ctx).Execute()
+	if err != nil {
+		return createError(httpResponse, err), nil
+	}
+
+	if errorResp := checkResponse(httpResponse, "list kubeconfig roles"); errorResp != nil {
+		return errorResp, nil
+	}
+
+	type RoleSummary struct {
+		ID   int32  `json:"id"`
+		Name string `json:"name"`
+	}
+
+	var roleSummaries []RoleSummary
+	if roles != nil {
+		for _, role := range roles.Data {
+			roleSummaries = append(roleSummaries, RoleSummary{
+				ID:   role.GetId(),
+				Name: role.GetName(),
+			})
+		}
+	}
+
+	return createJSONResponse(roleSummaries), nil
 }

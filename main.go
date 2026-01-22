@@ -496,6 +496,14 @@ func main() {
 	}
 	logger.Println("Registered get-kubeconfig tool")
 
+	err = server.RegisterTool("list-kubeconfig-roles", "List available roles for kubeconfigs", func(args ListKubeConfigRolesArgs) (*mcp_golang.ToolResponse, error) {
+		return listKubeConfigRoles(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register list-kubeconfig-roles tool: %v", err)
+	}
+	logger.Println("Registered list-kubeconfig-roles tool")
+
 	logger.Println("All tools registered successfully. Starting MCP server...")
 	logger.Println("About to call server.Serve()...")
 	err = server.Serve()

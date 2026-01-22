@@ -302,16 +302,10 @@ func addAppToCatalog(client *taikungoclient.Client, args AddAppToCatalogArgs) (*
 func removeAppFromCatalog(client *taikungoclient.Client, args RemoveAppFromCatalogArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
-	// First, we need to find the catalog app ID by listing apps and finding the match
-	listArgs := ListCatalogAppsArgs{
-		CatalogID: args.CatalogID,
-		Search:    args.PackageName,
-	}
-
 	// Get the catalog apps to find the specific app to delete
 	req := client.Client.CatalogAppAPI.CatalogAppList(ctx).CatalogId(args.CatalogID)
-	if listArgs.Search != "" {
-		req = req.Search(listArgs.Search)
+	if args.PackageName != "" {
+		req = req.Search(args.PackageName)
 	}
 
 	catalogAppList, response, err := req.Execute()
