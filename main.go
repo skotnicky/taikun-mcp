@@ -177,7 +177,6 @@ type CatalogAppListResponse struct {
 	Message      string              `json:"message"`
 }
 
-
 // createJSONResponse creates a JSON response using NewTextContent
 func createJSONResponse(data interface{}) *mcp_golang.ToolResponse {
 	jsonData, err := json.Marshal(data)
@@ -472,6 +471,30 @@ func main() {
 		logger.Fatalf("Failed to register delete-project tool: %v", err)
 	}
 	logger.Println("Registered delete-project tool")
+
+	err = server.RegisterTool("deploy-kubernetes-resources", "Deploy Kubernetes resources via YAML in a project", func(args DeployKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
+		return deployKubernetesResources(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register deploy-kubernetes-resources tool: %v", err)
+	}
+	logger.Println("Registered deploy-kubernetes-resources tool")
+
+	err = server.RegisterTool("create-kubeconfig", "Create a new kubeconfig for a project", func(args CreateKubeConfigArgs) (*mcp_golang.ToolResponse, error) {
+		return createKubeConfig(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register create-kubeconfig tool: %v", err)
+	}
+	logger.Println("Registered create-kubeconfig tool")
+
+	err = server.RegisterTool("get-kubeconfig", "Retrieve the kubeconfig content for a project", func(args GetKubeConfigArgs) (*mcp_golang.ToolResponse, error) {
+		return getKubeConfig(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register get-kubeconfig tool: %v", err)
+	}
+	logger.Println("Registered get-kubeconfig tool")
 
 	logger.Println("All tools registered successfully. Starting MCP server...")
 	logger.Println("About to call server.Serve()...")
