@@ -504,6 +504,22 @@ func main() {
 	}
 	logger.Println("Registered list-kubeconfig-roles tool")
 
+	err = server.RegisterTool("list-kubernetes-resources", "List specialized Kubernetes resources in a project", func(args ListKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
+		return listKubernetesResources(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register list-kubernetes-resources tool: %v", err)
+	}
+	logger.Println("Registered list-kubernetes-resources tool")
+
+	err = server.RegisterTool("describe-kubernetes-resource", "Describe a specialized Kubernetes resource in a project", func(args DescribeKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
+		return describeKubernetesResource(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register describe-kubernetes-resource tool: %v", err)
+	}
+	logger.Println("Registered describe-kubernetes-resource tool")
+
 	logger.Println("All tools registered successfully. Starting MCP server...")
 	logger.Println("About to call server.Serve()...")
 	err = server.Serve()

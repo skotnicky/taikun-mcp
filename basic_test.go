@@ -26,7 +26,7 @@ func TestResponseStructMarshaling(t *testing.T) {
 			},
 		},
 		{
-			name: "ErrorResponse", 
+			name: "ErrorResponse",
 			data: ErrorResponse{
 				Error: "Test error",
 			},
@@ -96,7 +96,7 @@ func TestCreateJSONResponseHelper(t *testing.T) {
 	}
 
 	if result.Message != "Test message" || !result.Success {
-		t.Errorf("Expected message='Test message' success=true, got message='%s' success=%t", 
+		t.Errorf("Expected message='Test message' success=true, got message='%s' success=%t",
 			result.Message, result.Success)
 	}
 
@@ -113,9 +113,9 @@ func TestArgumentStructs(t *testing.T) {
 			name: "CreateVirtualClusterArgs",
 			data: CreateVirtualClusterArgs{
 				ProjectID:       123,
-				Name:           "test-cluster",
+				Name:            "test-cluster",
 				WaitForCreation: true,
-				Timeout:        600,
+				Timeout:         600,
 			},
 		},
 		{
@@ -183,6 +183,23 @@ func TestArgumentStructs(t *testing.T) {
 				CatalogID:   123,
 				Repository:  "bitnami",
 				PackageName: "nginx",
+			},
+		},
+		{
+			name: "ListKubernetesResourcesArgs",
+			data: ListKubernetesResourcesArgs{
+				ProjectID:  123,
+				Kind:       "Pods",
+				Limit:      10,
+				SearchTerm: "test",
+			},
+		},
+		{
+			name: "DescribeKubernetesResourceArgs",
+			data: DescribeKubernetesResourceArgs{
+				ProjectID: 123,
+				Name:      "test-pod",
+				Kind:      "Pod",
 			},
 		},
 	}
