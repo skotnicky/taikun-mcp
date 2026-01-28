@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/itera-io/taikungoclient"
 	taikuncore "github.com/itera-io/taikungoclient/client"
@@ -196,6 +197,9 @@ func getKubernetesClientset(client *taikungoclient.Client, projectID int32) (*ku
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST config: %v", err)
 	}
+
+	// Set a timeout for the kubernetes client testing
+	config.Timeout = 30 * time.Second
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
