@@ -520,6 +520,14 @@ func main() {
 	}
 	logger.Println("Registered describe-kubernetes-resource tool")
 
+	err = server.RegisterTool("delete-kubernetes-resource", "Delete a Kubernetes resource", func(args DeleteKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
+		return deleteKubernetesResource(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register delete-kubernetes-resource tool: %v", err)
+	}
+	logger.Println("Registered delete-kubernetes-resource tool")
+
 	logger.Println("All tools registered successfully. Starting MCP server...")
 	logger.Println("About to call server.Serve()...")
 	err = server.Serve()

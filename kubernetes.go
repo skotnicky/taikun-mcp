@@ -152,6 +152,13 @@ func formatAge(timestamp metav1.Time) string {
 	return duration.String()
 }
 
+type DeleteKubernetesResourceArgs struct {
+	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID of the resource"`
+	Kind      string `json:"kind" jsonschema:"required,description=The kind of the resource (e.g., Pod, Deployment, Service)"`
+	Name      string `json:"name" jsonschema:"required,description=The name of the resource to delete"`
+	Namespace string `json:"namespace,omitempty" jsonschema:"description=The namespace of the resource (optional, defaults to 'default')"`
+}
+
 type DeployKubernetesResourcesArgs struct {
 	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID to deploy the resources to"`
 	YAML      string `json:"yaml" jsonschema:"required,description=The Kubernetes resources in YAML format"`
@@ -941,4 +948,61 @@ func originalDescribeKubernetesResource(client *taikungoclient.Client, args Desc
 	}
 
 	return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(description)), nil
+}
+
+func deleteKubernetesResource(client *taikungoclient.Client, args DeleteKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
+	clientset, err := getKubernetesClientset(client, args.ProjectID)
+	if err != nil {
+		errorResp := ErrorResponse{
+			Error:   fmt.Sprintf("Failed to initialize Kubernetes client: %v", err),
+			Details: "Make sure the project has a valid kubeconfig and cluster is accessible",
+		}
+		return createJSONResponse(errorResp), nil
+	}
+
+	ctx := context.Background()
+	namespace := args.Namespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	switch args.Kind {
+	case "Pod":
+		err = clientset.CoreV1().Pods(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "Deployment":
+		err = clientset.AppsV1().Deployments(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "Service":
+		err = clientset.CoreV1().Services(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "ConfigMap":
+		err = clientset.CoreV1().ConfigMaps(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "Secret":
+		err = clientset.CoreV1().Secrets(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "Ingress":
+		err = clientset.NetworkingV1().Ingresses(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "CronJob":
+		err = clientset.BatchV1().CronJobs(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "DaemonSet":
+		err = clientset.AppsV1().DaemonSets(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "Job":
+		err = clientset.BatchV1().Jobs(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "Pvc":
+		err = clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "StatefulSet":
+		err = clientset.AppsV1().StatefulSets(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
+	case "Namespace":
+		err = clientset.CoreV1().Namespaces().Delete(ctx, args.Name, metav1.DeleteOptions{})
+	default:
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Unsupported resource kind for deletion: %s", args.Kind))), nil
+	}
+
+	if err != nil {
+		return createError(nil, err), nil
+	}
+
+	successResp := SuccessResponse{
+		Message: fmt.Sprintf("%s '%s' deleted successfully from namespace '%s'", args.Kind, args.Name, namespace),
+		Success: true,
+	}
+
+	return createJSONResponse(successResp), nil
 }
