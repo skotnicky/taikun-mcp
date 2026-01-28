@@ -59,3 +59,4 @@ coverage.out
 # Debug files
 debug
 *.pprof
+*.kubeconfig

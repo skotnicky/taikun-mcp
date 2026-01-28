@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/itera-io/taikungoclient"
 	taikuncore "github.com/itera-io/taikungoclient/client"
 	mcp_golang "github.com/metoro-io/mcp-golang"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type DeployKubernetesResourcesArgs struct {
@@ -178,7 +182,136 @@ func listKubeConfigRoles(client *taikungoclient.Client, _ ListKubeConfigRolesArg
 	return createJSONResponse(roleSummaries), nil
 }
 
+func getKubernetesClientset(client *taikungoclient.Client, projectID int32) (*kubernetes.Clientset, error) {
+	ctx := context.Background()
+	kubeconfig, httpResponse, err := client.Client.KubernetesAPI.KubernetesKubeConfig(ctx, projectID).Execute()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubeconfig: %v", err)
+	}
+	if httpResponse.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get kubeconfig: HTTP %d", httpResponse.StatusCode)
+	}
+
+	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig.GetData()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create REST config: %v", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clientset: %v", err)
+	}
+
+	return clientset, nil
+}
+
 func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
+	clientset, err := getKubernetesClientset(client, args.ProjectID)
+	if err != nil {
+		errorResp := ErrorResponse{
+			Error:   fmt.Sprintf("Failed to initialize Kubernetes client: %v", err),
+			Details: "Make sure the project has a valid kubeconfig and cluster is accessible",
+		}
+		return createJSONResponse(errorResp), nil
+	}
+
+	ctx := context.Background()
+	var result interface{}
+
+	switch args.Kind {
+	case "Pods":
+		pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = pods
+	case "Deployments":
+		deployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = deployments
+	case "Services":
+		services, err := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = services
+	case "Namespaces":
+		namespaces, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = namespaces
+	case "ConfigMaps":
+		configMaps, err := clientset.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = configMaps
+	case "Secrets":
+		secrets, err := clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = secrets
+	case "Ingress":
+		ingresses, err := clientset.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = ingresses
+	case "CronJobs":
+		cronJobs, err := clientset.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = cronJobs
+	case "DaemonSets":
+		daemonSets, err := clientset.AppsV1().DaemonSets("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = daemonSets
+	case "Jobs":
+		jobs, err := clientset.BatchV1().Jobs("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = jobs
+	case "Nodes":
+		nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = nodes
+	case "Pvcs":
+		pvcs, err := clientset.CoreV1().PersistentVolumeClaims("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = pvcs
+	case "StorageClasses":
+		storageClasses, err := clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = storageClasses
+	case "Sts":
+		statefulSets, err := clientset.AppsV1().StatefulSets("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		result = statefulSets
+	default:
+		// Fallback to original search API if kind not handled yet
+		return originalListKubernetesResources(client, args)
+	}
+
+	return createJSONResponse(result), nil
+}
+
+func originalListKubernetesResources(client *taikungoclient.Client, args ListKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
 	var result interface{}
@@ -370,6 +503,49 @@ func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesR
 }
 
 func describeKubernetesResource(client *taikungoclient.Client, args DescribeKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
+	clientset, err := getKubernetesClientset(client, args.ProjectID)
+	if err != nil {
+		errorResp := ErrorResponse{
+			Error:   fmt.Sprintf("Failed to initialize Kubernetes client: %v", err),
+			Details: "Make sure the project has a valid kubeconfig and cluster is accessible",
+		}
+		return createJSONResponse(errorResp), nil
+	}
+
+	ctx := context.Background()
+	var result string
+
+	switch args.Kind {
+	case "Pod":
+		pod, err := clientset.CoreV1().Pods("").Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(pod, "", "  ")
+		result = string(yamlData)
+	case "Deployment":
+		deployment, err := clientset.AppsV1().Deployments("").Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(deployment, "", "  ")
+		result = string(yamlData)
+	case "Service":
+		service, err := clientset.CoreV1().Services("").Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(service, "", "  ")
+		result = string(yamlData)
+	default:
+		// Fallback to original describe API if kind not handled yet
+		return originalDescribeKubernetesResource(client, args)
+	}
+
+	return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(result)), nil
+}
+
+func originalDescribeKubernetesResource(client *taikungoclient.Client, args DescribeKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
 	kind, err := taikuncore.NewEKubernetesResourceFromValue(args.Kind)
