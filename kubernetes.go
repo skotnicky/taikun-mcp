@@ -685,199 +685,7 @@ func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesR
 		}
 		result = summaries
 	default:
-		// Fallback to original search API if kind not handled yet
-		return originalListKubernetesResources(client, args)
-	}
-
-	return createJSONResponse(result), nil
-}
-
-func originalListKubernetesResources(client *taikungoclient.Client, args ListKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
-	ctx := context.Background()
-
-	var result interface{}
-	var httpResponse *http.Response
-	var err error
-
-	switch args.Kind {
-	case "Pods":
-		cmd := taikuncore.NewPodsSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchPods(ctx).PodsSearchCommand(*cmd).Execute()
-	case "Deployments":
-		cmd := taikuncore.NewDeploymentSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchDeployments(ctx).DeploymentSearchCommand(*cmd).Execute()
-	case "Services":
-		cmd := taikuncore.NewServiceSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchServices(ctx).ServiceSearchCommand(*cmd).Execute()
-	case "Namespaces":
-		cmd := taikuncore.NewNamespaceSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchNamespaces(ctx).NamespaceSearchCommand(*cmd).Execute()
-	case "ConfigMaps":
-		cmd := taikuncore.NewConfigMapSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchConfigMaps(ctx).ConfigMapSearchCommand(*cmd).Execute()
-	case "Secrets":
-		cmd := taikuncore.NewSecretSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchSecrets(ctx).SecretSearchCommand(*cmd).Execute()
-	case "Ingress":
-		cmd := taikuncore.NewIngressSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchIngress(ctx).IngressSearchCommand(*cmd).Execute()
-	case "CronJobs":
-		cmd := taikuncore.NewCronjobsSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchCronJobs(ctx).CronjobsSearchCommand(*cmd).Execute()
-	case "DaemonSets":
-		cmd := taikuncore.NewDaemonSetSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchDaemonSets(ctx).DaemonSetSearchCommand(*cmd).Execute()
-	case "Jobs":
-		cmd := taikuncore.NewJobsSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchJobs(ctx).JobsSearchCommand(*cmd).Execute()
-	case "Nodes":
-		cmd := taikuncore.NewNodesSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchNodes(ctx).NodesSearchCommand(*cmd).Execute()
-	case "Pvcs":
-		cmd := taikuncore.NewPvcSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchPvcs(ctx).PvcSearchCommand(*cmd).Execute()
-	case "StorageClasses":
-		cmd := taikuncore.NewStorageClassesSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchStorageClasses(ctx).StorageClassesSearchCommand(*cmd).Execute()
-	case "Sts":
-		cmd := taikuncore.NewStsSearchCommand()
-		if args.Limit > 0 {
-			cmd.SetLimit(args.Limit)
-		}
-		if args.Offset > 0 {
-			cmd.SetOffset(args.Offset)
-		}
-		if args.SearchTerm != "" {
-			cmd.SetSearchTerm(args.SearchTerm)
-		}
-		result, httpResponse, err = client.Client.SearchAPI.SearchSts(ctx).StsSearchCommand(*cmd).Execute()
-	default:
-		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Unsupported resource kind: %s", args.Kind))), nil
-	}
-
-	if err != nil {
-		return createError(httpResponse, err), nil
-	}
-
-	if errorResp := checkResponse(httpResponse, fmt.Sprintf("list %s", args.Kind)); errorResp != nil {
-		return errorResp, nil
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Unsupported resource kind for project-scoped listing: %s. Please use one of: Pods, Deployments, Services, Namespaces, ConfigMaps, Secrets, Ingress, CronJobs, DaemonSets, Jobs, Nodes, Pvcs, StorageClasses, Sts.", args.Kind))), nil
 	}
 
 	return createJSONResponse(result), nil
@@ -902,28 +710,98 @@ func describeKubernetesResource(client *taikungoclient.Client, args DescribeKube
 
 	switch args.Kind {
 	case "Pod":
-		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		resource, err := clientset.CoreV1().Pods(namespace).Get(ctx, args.Name, metav1.GetOptions{})
 		if err != nil {
 			return createError(nil, err), nil
 		}
-		yamlData, _ := json.MarshalIndent(pod, "", "  ")
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
 		result = string(yamlData)
 	case "Deployment":
-		deployment, err := clientset.AppsV1().Deployments(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		resource, err := clientset.AppsV1().Deployments(namespace).Get(ctx, args.Name, metav1.GetOptions{})
 		if err != nil {
 			return createError(nil, err), nil
 		}
-		yamlData, _ := json.MarshalIndent(deployment, "", "  ")
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
 		result = string(yamlData)
 	case "Service":
-		service, err := clientset.CoreV1().Services(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		resource, err := clientset.CoreV1().Services(namespace).Get(ctx, args.Name, metav1.GetOptions{})
 		if err != nil {
 			return createError(nil, err), nil
 		}
-		yamlData, _ := json.MarshalIndent(service, "", "  ")
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "ConfigMap":
+		resource, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "Secret":
+		resource, err := clientset.CoreV1().Secrets(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "Ingress":
+		resource, err := clientset.NetworkingV1().Ingresses(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "CronJob":
+		resource, err := clientset.BatchV1().CronJobs(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "DaemonSet":
+		resource, err := clientset.AppsV1().DaemonSets(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "Job":
+		resource, err := clientset.BatchV1().Jobs(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "Pvc":
+		resource, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "StatefulSet":
+		resource, err := clientset.AppsV1().StatefulSets(namespace).Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "Namespace":
+		resource, err := clientset.CoreV1().Namespaces().Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
+		result = string(yamlData)
+	case "Node":
+		resource, err := clientset.CoreV1().Nodes().Get(ctx, args.Name, metav1.GetOptions{})
+		if err != nil {
+			return createError(nil, err), nil
+		}
+		yamlData, _ := json.MarshalIndent(resource, "", "  ")
 		result = string(yamlData)
 	default:
-		// Fallback to original describe API if kind not handled yet
+		// Fallback to original describe API if kind not handled yet by clientset
 		return originalDescribeKubernetesResource(client, args)
 	}
 

@@ -632,7 +632,7 @@ func main() {
 	}
 	logger.Println("Registered bind-flavors-to-project tool")
 
-	err = server.RegisterTool("add-server-to-project", "Add a server to a project", func(args AddServerArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("add-server-to-project", "Add a server to a project. Recommendation: Bastion needs min flavor (2 CPUs, 2GB RAM), Master and Worker need at least 4 CPUs and 4GB RAM.", func(args AddServerArgs) (*mcp_golang.ToolResponse, error) {
 		return addServerToProject(taikunClient, args)
 	})
 	if err != nil {
