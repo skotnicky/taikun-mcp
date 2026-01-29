@@ -202,6 +202,15 @@ func TestArgumentStructs(t *testing.T) {
 				Kind:      "Pod",
 			},
 		},
+		{
+			name: "DeleteServersArgs",
+			data: DeleteServersArgs{
+				ProjectId:                123,
+				ServerIds:                []int32{456, 789},
+				ForceDeleteVClusters:     true,
+				DeleteAutoscalingServers: false,
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -209,3 +209,31 @@ func listServers(client *taikungoclient.Client, args ListServersArgs) (*mcp_gola
 
 	return createJSONResponse(response), nil
 }
+
+func deleteServersFromProject(client *taikungoclient.Client, args DeleteServersArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+
+	command := taikuncore.NewProjectDeploymentDeleteServersCommand()
+	command.SetProjectId(args.ProjectId)
+	command.SetServerIds(args.ServerIds)
+	command.SetForceDeleteVClusters(args.ForceDeleteVClusters)
+	command.SetDeleteAutoscalingServers(args.DeleteAutoscalingServers)
+
+	request := client.Client.ProjectDeploymentAPI.ProjectDeploymentDelete(ctx).
+		ProjectDeploymentDeleteServersCommand(*command)
+
+	httpResponse, err := request.Execute()
+	if err != nil {
+		return createError(httpResponse, err), nil
+	}
+
+	if errorResp := checkResponse(httpResponse, "delete servers from project"); errorResp != nil {
+		return errorResp, nil
+	}
+
+	return createJSONResponse(map[string]interface{}{
+		"message":   fmt.Sprintf("Successfully deleted %d server(s) from project %d", len(args.ServerIds), args.ProjectId),
+		"serverIds": args.ServerIds,
+		"success":   true,
+	}), nil
+}

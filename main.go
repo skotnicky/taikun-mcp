@@ -219,6 +219,13 @@ type GetProjectDetailsArgs struct {
 	ProjectId int32 `json:"projectId" jsonschema:"description=The ID of the project to get details for"`
 }
 
+type DeleteServersArgs struct {
+	ProjectId                int32   `json:"projectId" jsonschema:"required,description=The ID of the project"`
+	ServerIds                []int32 `json:"serverIds" jsonschema:"required,description=List of server IDs to delete"`
+	ForceDeleteVClusters     bool    `json:"forceDeleteVClusters,omitempty" jsonschema:"description=Force delete virtual clusters on these servers (default: false)"`
+	DeleteAutoscalingServers bool    `json:"deleteAutoscalingServers,omitempty" jsonschema:"description=Delete autoscaling servers (default: false)"`
+}
+
 type ListFlavorsArgs struct {
 	CloudCredentialId int32  `json:"cloudCredentialId" jsonschema:"description=The ID of the cloud credential to list flavors for"`
 	Limit             int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
@@ -679,6 +686,14 @@ func main() {
 		logger.Fatalf("Failed to register list-servers tool: %v", err)
 	}
 	logger.Println("Registered list-servers tool")
+
+	err = server.RegisterTool("delete-servers-from-project", "Delete servers from a project", func(args DeleteServersArgs) (*mcp_golang.ToolResponse, error) {
+		return deleteServersFromProject(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register delete-servers-from-project tool: %v", err)
+	}
+	logger.Println("Registered delete-servers-from-project tool")
 
 	logger.Println("All tools registered successfully. Starting MCP server...")
 	logger.Println("About to call server.Serve()...")
