@@ -211,6 +211,22 @@ func TestArgumentStructs(t *testing.T) {
 				DeleteAutoscalingServers: false,
 			},
 		},
+		{
+			name: "WaitForProjectArgs",
+			data: WaitForProjectArgs{
+				ProjectId:   123,
+				Timeout:     600,
+				WaitDeleted: true,
+			},
+		},
+		{
+			name: "WaitForAppArgs",
+			data: WaitForAppArgs{
+				ProjectAppId: 123,
+				Timeout:      300,
+				WaitDeleted:  true,
+			},
+		},
 	}
 
 	for _, tt := range tests {

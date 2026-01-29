@@ -219,6 +219,18 @@ type GetProjectDetailsArgs struct {
 	ProjectId int32 `json:"projectId" jsonschema:"description=The ID of the project to get details for"`
 }
 
+type WaitForProjectArgs struct {
+	ProjectId   int32 `json:"projectId" jsonschema:"required,description=The ID of the project to wait for"`
+	Timeout     int32 `json:"timeout,omitempty" jsonschema:"description=Timeout in seconds (default: 600 for creation, 300 for deletion)"`
+	WaitDeleted bool  `json:"waitDeleted,omitempty" jsonschema:"description=Wait for the project to be deleted (default: false)"`
+}
+
+type WaitForAppArgs struct {
+	ProjectAppId int32 `json:"projectAppId" jsonschema:"required,description=The ID of the project application to wait for"`
+	Timeout      int32 `json:"timeout,omitempty" jsonschema:"description=Timeout in seconds (default: 60 for creation, 30 for deletion)"`
+	WaitDeleted  bool  `json:"waitDeleted,omitempty" jsonschema:"description=Wait for the application to be deleted (default: false)"`
+}
+
 type DeleteServersArgs struct {
 	ProjectId                int32   `json:"projectId" jsonschema:"required,description=The ID of the project"`
 	ServerIds                []int32 `json:"serverIds" jsonschema:"required,description=List of server IDs to delete"`
@@ -543,6 +555,14 @@ func main() {
 	}
 	logger.Println("Registered uninstall-app tool")
 
+	err = server.RegisterTool("wait-for-app", "Wait for an application instance to be ready", func(args WaitForAppArgs) (*mcp_golang.ToolResponse, error) {
+		return waitForApp(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register wait-for-app tool: %v", err)
+	}
+	logger.Println("Registered wait-for-app tool")
+
 	err = server.RegisterTool("list-projects", "List Kubernetes projects with optional virtual cluster filtering", func(args ListProjectsArgs) (*mcp_golang.ToolResponse, error) {
 		return listProjects(taikunClient, args)
 	})
@@ -566,6 +586,14 @@ func main() {
 		logger.Fatalf("Failed to register delete-project tool: %v", err)
 	}
 	logger.Println("Registered delete-project tool")
+
+	err = server.RegisterTool("wait-for-project", "Wait for a project to be ready and healthy", func(args WaitForProjectArgs) (*mcp_golang.ToolResponse, error) {
+		return waitForProject(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register wait-for-project tool: %v", err)
+	}
+	logger.Println("Registered wait-for-project tool")
 
 	err = server.RegisterTool("deploy-kubernetes-resources", "Deploy Kubernetes resources via YAML in a project", func(args DeployKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
 		return deployKubernetesResources(taikunClient, args)

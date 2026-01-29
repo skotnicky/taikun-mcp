@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/itera-io/taikungoclient"
 	taikuncore "github.com/itera-io/taikungoclient/client"
@@ -262,4 +263,84 @@ func deleteProject(client *taikungoclient.Client, args DeleteProjectArgs) (*mcp_
 	}
 
 	return createJSONResponse(successResp), nil
+}
+
+func waitForProject(client *taikungoclient.Client, args WaitForProjectArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+	timeout := 600 // Default 10 minutes for creation
+	if args.WaitDeleted {
+		timeout = 300 // Default 5 minutes for deletion
+	}
+	if args.Timeout > 0 {
+		timeout = int(args.Timeout)
+	}
+
+	if args.WaitDeleted {
+		logger.Printf("Waiting for project %d to be deleted (timeout: %d seconds)", args.ProjectId, timeout)
+	} else {
+		logger.Printf("Waiting for project %d to be ready (timeout: %d seconds)", args.ProjectId, timeout)
+	}
+
+	// Poll every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	timeoutChan := time.After(time.Duration(timeout) * time.Second)
+
+	for {
+		select {
+		case <-timeoutChan:
+			return createJSONResponse(ErrorResponse{
+				Error: fmt.Sprintf("Timeout waiting for project %d after %d seconds", args.ProjectId, timeout),
+			}), nil
+		case <-ticker.C:
+			// Check project status
+			request := client.Client.ProjectsAPI.ProjectsList(ctx).Id(args.ProjectId)
+			result, httpResponse, err := request.Execute()
+			if err != nil {
+				return createError(httpResponse, err), nil
+			}
+
+			if errorResp := checkResponse(httpResponse, "check project status"); errorResp != nil {
+				return errorResp, nil
+			}
+
+			if len(result.Data) == 0 {
+				if args.WaitDeleted {
+					return createJSONResponse(SuccessResponse{
+						Message: fmt.Sprintf("Project %d has been successfully deleted", args.ProjectId),
+						Success: true,
+					}), nil
+				}
+				return createJSONResponse(ErrorResponse{
+					Error: fmt.Sprintf("Project %d not found", args.ProjectId),
+				}), nil
+			}
+
+			if args.WaitDeleted {
+				project := result.Data[0]
+				logger.Printf("Project %d still exists - Status: %s", args.ProjectId, project.GetStatus())
+				continue
+			}
+
+			project := result.Data[0]
+			status := project.GetStatus()
+			health := project.GetHealth()
+
+			logger.Printf("Project %d status: %s, health: %s", args.ProjectId, status, health)
+
+			if status == taikuncore.PROJECTSTATUS_READY && health == taikuncore.PROJECTHEALTH_HEALTHY {
+				return createJSONResponse(SuccessResponse{
+					Message: fmt.Sprintf("Project %d is now ready and healthy", args.ProjectId),
+					Success: true,
+				}), nil
+			}
+
+			if status == taikuncore.PROJECTSTATUS_FAILURE || health == taikuncore.PROJECTHEALTH_UNHEALTHY {
+				return createJSONResponse(ErrorResponse{
+					Error: fmt.Sprintf("Project %d reached a failure state - Status: %s, Health: %s", args.ProjectId, status, health),
+				}), nil
+			}
+		}
+	}
 }
