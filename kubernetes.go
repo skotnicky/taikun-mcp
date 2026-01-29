@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -191,6 +190,13 @@ type DescribeKubernetesResourceArgs struct {
 	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID of the resource"`
 	Name      string `json:"name" jsonschema:"required,description=The name of the resource"`
 	Kind      string `json:"kind" jsonschema:"required,description=The kind of the resource (e.g., Pod, Deployment, Service, etc.)"`
+	Namespace string `json:"namespace,omitempty" jsonschema:"description=The namespace of the resource (optional, defaults to 'default')"`
+}
+
+type PatchKubernetesResourceArgs struct {
+	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID of the resource"`
+	Name      string `json:"name" jsonschema:"required,description=The name of the resource to patch"`
+	Yaml      string `json:"yaml" jsonschema:"required,description=The YAML patch to apply to the resource"`
 	Namespace string `json:"namespace,omitempty" jsonschema:"description=The namespace of the resource (optional, defaults to 'default')"`
 }
 
@@ -692,123 +698,6 @@ func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesR
 }
 
 func describeKubernetesResource(client *taikungoclient.Client, args DescribeKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
-	clientset, err := getKubernetesClientset(client, args.ProjectID)
-	if err != nil {
-		errorResp := ErrorResponse{
-			Error:   fmt.Sprintf("Failed to initialize Kubernetes client: %v", err),
-			Details: "Make sure the project has a valid kubeconfig and cluster is accessible",
-		}
-		return createJSONResponse(errorResp), nil
-	}
-
-	ctx := context.Background()
-	var result string
-	namespace := args.Namespace
-	if namespace == "" {
-		namespace = "default"
-	}
-
-	switch args.Kind {
-	case "Pod":
-		resource, err := clientset.CoreV1().Pods(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Deployment":
-		resource, err := clientset.AppsV1().Deployments(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Service":
-		resource, err := clientset.CoreV1().Services(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "ConfigMap":
-		resource, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Secret":
-		resource, err := clientset.CoreV1().Secrets(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Ingress":
-		resource, err := clientset.NetworkingV1().Ingresses(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "CronJob":
-		resource, err := clientset.BatchV1().CronJobs(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "DaemonSet":
-		resource, err := clientset.AppsV1().DaemonSets(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Job":
-		resource, err := clientset.BatchV1().Jobs(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Pvc":
-		resource, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "StatefulSet":
-		resource, err := clientset.AppsV1().StatefulSets(namespace).Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Namespace":
-		resource, err := clientset.CoreV1().Namespaces().Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	case "Node":
-		resource, err := clientset.CoreV1().Nodes().Get(ctx, args.Name, metav1.GetOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		yamlData, _ := json.MarshalIndent(resource, "", "  ")
-		result = string(yamlData)
-	default:
-		// Fallback to original describe API if kind not handled yet by clientset
-		return originalDescribeKubernetesResource(client, args)
-	}
-
-	return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(result)), nil
-}
-
-func originalDescribeKubernetesResource(client *taikungoclient.Client, args DescribeKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
 	kind, err := taikuncore.NewEKubernetesResourceFromValue(args.Kind)
@@ -817,6 +706,9 @@ func originalDescribeKubernetesResource(client *taikungoclient.Client, args Desc
 	}
 
 	describeCmd := taikuncore.NewDescribeKubernetesResourceCommand(args.ProjectID, args.Name, *kind)
+	if args.Namespace != "" {
+		describeCmd.SetNamespace(args.Namespace)
+	}
 
 	description, httpResponse, err := client.Client.KubernetesAPI.KubernetesDescribeResource(ctx).
 		DescribeKubernetesResourceCommand(*describeCmd).
@@ -834,56 +726,74 @@ func originalDescribeKubernetesResource(client *taikungoclient.Client, args Desc
 }
 
 func deleteKubernetesResource(client *taikungoclient.Client, args DeleteKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
-	clientset, err := getKubernetesClientset(client, args.ProjectID)
+	ctx := context.Background()
+
+	kind, err := taikuncore.NewEKubernetesResourceFromValue(args.Kind)
 	if err != nil {
-		errorResp := ErrorResponse{
-			Error:   fmt.Sprintf("Failed to initialize Kubernetes client: %v", err),
-			Details: "Make sure the project has a valid kubeconfig and cluster is accessible",
-		}
-		return createJSONResponse(errorResp), nil
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Invalid resource kind: %s", args.Kind))), nil
 	}
 
-	ctx := context.Background()
+	// Create the action request with name and namespace
+	actionRequest := taikuncore.NewKubernetesActionRequest(args.Name)
+	if args.Namespace != "" {
+		actionRequest.SetNamespace(args.Namespace)
+	}
+
+	// Create the delete command
+	deleteCmd := taikuncore.NewDeleteKubernetesResourceCommand(args.ProjectID, *kind, []taikuncore.KubernetesActionRequest{*actionRequest})
+
+	_, httpResponse, err := client.Client.KubernetesAPI.KubernetesDeleteResource(ctx).
+		DeleteKubernetesResourceCommand(*deleteCmd).
+		Execute()
+
+	if err != nil {
+		return createError(httpResponse, err), nil
+	}
+
+	if errorResp := checkResponse(httpResponse, fmt.Sprintf("delete %s %s", args.Kind, args.Name)); errorResp != nil {
+		return errorResp, nil
+	}
+
 	namespace := args.Namespace
 	if namespace == "" {
 		namespace = "default"
 	}
 
-	switch args.Kind {
-	case "Pod":
-		err = clientset.CoreV1().Pods(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "Deployment":
-		err = clientset.AppsV1().Deployments(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "Service":
-		err = clientset.CoreV1().Services(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "ConfigMap":
-		err = clientset.CoreV1().ConfigMaps(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "Secret":
-		err = clientset.CoreV1().Secrets(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "Ingress":
-		err = clientset.NetworkingV1().Ingresses(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "CronJob":
-		err = clientset.BatchV1().CronJobs(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "DaemonSet":
-		err = clientset.AppsV1().DaemonSets(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "Job":
-		err = clientset.BatchV1().Jobs(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "Pvc":
-		err = clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "StatefulSet":
-		err = clientset.AppsV1().StatefulSets(namespace).Delete(ctx, args.Name, metav1.DeleteOptions{})
-	case "Namespace":
-		err = clientset.CoreV1().Namespaces().Delete(ctx, args.Name, metav1.DeleteOptions{})
-	default:
-		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Unsupported resource kind for deletion: %s", args.Kind))), nil
+	successResp := SuccessResponse{
+		Message: fmt.Sprintf("%s '%s' deleted successfully from namespace '%s'", args.Kind, args.Name, namespace),
+		Success: true,
 	}
 
+	return createJSONResponse(successResp), nil
+}
+
+func patchKubernetesResource(client *taikungoclient.Client, args PatchKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+
+	patchCmd := taikuncore.NewPatchKubernetesResourceCommand(args.ProjectID, args.Yaml, args.Name)
+	if args.Namespace != "" {
+		patchCmd.SetNamespace(args.Namespace)
+	}
+
+	httpResponse, err := client.Client.KubernetesAPI.KubernetesPatchResource(ctx).
+		PatchKubernetesResourceCommand(*patchCmd).
+		Execute()
+
 	if err != nil {
-		return createError(nil, err), nil
+		return createError(httpResponse, err), nil
+	}
+
+	if errorResp := checkResponse(httpResponse, fmt.Sprintf("patch resource %s", args.Name)); errorResp != nil {
+		return errorResp, nil
+	}
+
+	namespace := args.Namespace
+	if namespace == "" {
+		namespace = "default"
 	}
 
 	successResp := SuccessResponse{
-		Message: fmt.Sprintf("%s '%s' deleted successfully from namespace '%s'", args.Kind, args.Name, namespace),
+		Message: fmt.Sprintf("Resource '%s' patched successfully in namespace '%s'", args.Name, namespace),
 		Success: true,
 	}
 

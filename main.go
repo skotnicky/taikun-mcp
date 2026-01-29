@@ -616,6 +616,14 @@ func main() {
 	}
 	logger.Println("Registered delete-kubernetes-resource tool")
 
+	err = server.RegisterTool("patch-kubernetes-resource", "Patch a Kubernetes resource using YAML", func(args PatchKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
+		return patchKubernetesResource(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register patch-kubernetes-resource tool: %v", err)
+	}
+	logger.Println("Registered patch-kubernetes-resource tool")
+
 	err = server.RegisterTool("list-cloud-credentials", "List cloud credentials", func(args ListCloudCredentialsArgs) (*mcp_golang.ToolResponse, error) {
 		return listCloudCredentials(taikunClient, args)
 	})
