@@ -9,7 +9,7 @@ This project provides an MCP (Model Context Protocol) server for Taikun Cloud Pl
 ### Official Taikun Resources
 - **Taikun API Documentation**: https://api.taikun.cloud/swagger/
 - **Taikun Showback API**: https://api.taikun.cloud/showback/swagger/
-- **Taikun Platform**: https://taikun.cloud/
+- **Taikun Platform**: https://docs.taikun.cloud/
 
 ### Go Client Library
 - **Taikun Go Client**: https://github.com/itera-io/taikungoclient
@@ -37,6 +37,9 @@ This project provides an MCP (Model Context Protocol) server for Taikun Cloud Pl
 - **Taikun CLI**: May provide additional usage examples
 
 ### Common API Patterns to Reference
+
+#### Boolean Parameters
+- **ALWAYS call boolean setters unconditionally**: Throughout the codebase, boolean setters (e.g., `SetForceDeleteVClusters(args.ForceDeleteVClusters)`) must be called with their actual value (true or false) rather than being wrapped in an `if` block. This ensures the API receives the user-provided value rather than falling back to an internal default.
 
 #### Catalog Operations
 - **Adding Apps**: See `terraform-provider-taikun/taikun/catalog/resource_taikun_catalog.go`
