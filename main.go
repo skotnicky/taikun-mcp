@@ -177,6 +177,25 @@ type CatalogAppListResponse struct {
 	Message      string              `json:"message"`
 }
 
+type CloudCredentialSummary struct {
+	ID               int32  `json:"id"`
+	Name             string `json:"name"`
+	CloudType        string `json:"cloudType"`
+	OrganizationName string `json:"organizationName"`
+}
+
+type CloudCredentialListResponse struct {
+	Credentials []CloudCredentialSummary `json:"credentials"`
+	Total       int                      `json:"total"`
+	Message     string                   `json:"message"`
+}
+
+type ListCloudCredentialsArgs struct {
+	Limit  int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
+	Offset int32  `json:"offset,omitempty" jsonschema:"description=Number of results to skip (optional)"`
+	Search string `json:"search,omitempty" jsonschema:"description=Search term to filter results (optional)"`
+}
+
 // createJSONResponse creates a JSON response using NewTextContent
 func createJSONResponse(data interface{}) *mcp_golang.ToolResponse {
 	jsonData, err := json.Marshal(data)
@@ -527,6 +546,14 @@ func main() {
 		logger.Fatalf("Failed to register delete-kubernetes-resource tool: %v", err)
 	}
 	logger.Println("Registered delete-kubernetes-resource tool")
+
+	err = server.RegisterTool("list-cloud-credentials", "List cloud credentials", func(args ListCloudCredentialsArgs) (*mcp_golang.ToolResponse, error) {
+		return listCloudCredentials(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register list-cloud-credentials tool: %v", err)
+	}
+	logger.Println("Registered list-cloud-credentials tool")
 
 	logger.Println("All tools registered successfully. Starting MCP server...")
 	logger.Println("About to call server.Serve()...")
