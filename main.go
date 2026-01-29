@@ -197,6 +197,74 @@ type ListCloudCredentialsArgs struct {
 	IsAdmin bool   `json:"isAdmin,omitempty" jsonschema:"description=Whether to list as admin (optional)"`
 }
 
+type BindFlavorsArgs struct {
+	ProjectId int32    `json:"projectId" jsonschema:"description=The ID of the project to bind flavors to"`
+	Flavors   []string `json:"flavors" jsonschema:"description=List of flavor names to bind"`
+}
+
+type AddServerArgs struct {
+	ProjectId int32  `json:"projectId" jsonschema:"description=The ID of the project to add the server to"`
+	Name      string `json:"name" jsonschema:"description=The name of the server"`
+	Role      string `json:"role" jsonschema:"description=The role of the server (Bastion, Kubemaster, Kubeworker)"`
+	Flavor    string `json:"flavor" jsonschema:"description=The flavor name for the server"`
+	DiskSize  int64  `json:"diskSize,omitempty" jsonschema:"description=The disk size in GB (optional)"`
+	Count     int32  `json:"count,omitempty" jsonschema:"description=Number of servers to add (default: 1)"`
+}
+
+type CommitProjectArgs struct {
+	ProjectId int32 `json:"projectId" jsonschema:"description=The ID of the project to commit"`
+}
+
+type GetProjectDetailsArgs struct {
+	ProjectId int32 `json:"projectId" jsonschema:"description=The ID of the project to get details for"`
+}
+
+type ListFlavorsArgs struct {
+	CloudCredentialId int32  `json:"cloudCredentialId" jsonschema:"description=The ID of the cloud credential to list flavors for"`
+	Limit             int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
+	Offset            int32  `json:"offset,omitempty" jsonschema:"description=Number of results to skip (optional)"`
+	Search            string `json:"search,omitempty" jsonschema:"description=Search term to filter results (optional)"`
+}
+
+type FlavorSummary struct {
+	Name string  `json:"name"`
+	CPU  int32   `json:"cpu"`
+	RAM  float64 `json:"ram"`
+}
+
+type FlavorListResponse struct {
+	Flavors []FlavorSummary `json:"flavors"`
+	Total   int32           `json:"total"`
+	Message string          `json:"message"`
+}
+
+type ListServersArgs struct {
+	ProjectId int32 `json:"projectId" jsonschema:"description=The ID of the project to list servers for"`
+}
+
+type ServerSummary struct {
+	ID        int32  `json:"id"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	Status    string `json:"status"`
+	IPAddress string `json:"ipAddress"`
+	Flavor    string `json:"flavor"`
+}
+
+type ServerListResponse struct {
+	Servers []ServerSummary `json:"servers"`
+	Total   int32           `json:"total"`
+	Message string          `json:"message"`
+}
+
+type ProjectStatusResponse struct {
+	ID        int32  `json:"id"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	Health    string `json:"health"`
+	CloudType string `json:"cloudType"`
+}
+
 // createJSONResponse creates a JSON response using NewTextContent
 func createJSONResponse(data interface{}) *mcp_golang.ToolResponse {
 	jsonData, err := json.Marshal(data)
@@ -555,6 +623,54 @@ func main() {
 		logger.Fatalf("Failed to register list-cloud-credentials tool: %v", err)
 	}
 	logger.Println("Registered list-cloud-credentials tool")
+
+	err = server.RegisterTool("bind-flavors-to-project", "Bind flavors to a project", func(args BindFlavorsArgs) (*mcp_golang.ToolResponse, error) {
+		return bindFlavorsToProject(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register bind-flavors-to-project tool: %v", err)
+	}
+	logger.Println("Registered bind-flavors-to-project tool")
+
+	err = server.RegisterTool("add-server-to-project", "Add a server to a project", func(args AddServerArgs) (*mcp_golang.ToolResponse, error) {
+		return addServerToProject(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register add-server-to-project tool: %v", err)
+	}
+	logger.Println("Registered add-server-to-project tool")
+
+	err = server.RegisterTool("commit-project", "Commit and deploy a project", func(args CommitProjectArgs) (*mcp_golang.ToolResponse, error) {
+		return commitProject(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register commit-project tool: %v", err)
+	}
+	logger.Println("Registered commit-project tool")
+
+	err = server.RegisterTool("get-project-details", "Get detailed status of a project", func(args GetProjectDetailsArgs) (*mcp_golang.ToolResponse, error) {
+		return getProjectDetails(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register get-project-details tool: %v", err)
+	}
+	logger.Println("Registered get-project-details tool")
+
+	err = server.RegisterTool("list-flavors", "List available flavors for a cloud credential", func(args ListFlavorsArgs) (*mcp_golang.ToolResponse, error) {
+		return listFlavors(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register list-flavors tool: %v", err)
+	}
+	logger.Println("Registered list-flavors tool")
+
+	err = server.RegisterTool("list-servers", "List servers in a project", func(args ListServersArgs) (*mcp_golang.ToolResponse, error) {
+		return listServers(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register list-servers tool: %v", err)
+	}
+	logger.Println("Registered list-servers tool")
 
 	logger.Println("All tools registered successfully. Starting MCP server...")
 	logger.Println("About to call server.Serve()...")
