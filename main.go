@@ -640,7 +640,7 @@ func main() {
 	}
 	logger.Println("Registered add-server-to-project tool")
 
-	err = server.RegisterTool("commit-project", "Commit and deploy a project", func(args CommitProjectArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("commit-project", "Commit and deploy a project. Note: Initial deployment takes 10-30 minutes.", func(args CommitProjectArgs) (*mcp_golang.ToolResponse, error) {
 		return commitProject(taikunClient, args)
 	})
 	if err != nil {
