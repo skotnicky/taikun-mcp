@@ -191,6 +191,7 @@ type DescribeKubernetesResourceArgs struct {
 	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID of the resource"`
 	Name      string `json:"name" jsonschema:"required,description=The name of the resource"`
 	Kind      string `json:"kind" jsonschema:"required,description=The kind of the resource (e.g., Pod, Deployment, Service, etc.)"`
+	Namespace string `json:"namespace,omitempty" jsonschema:"description=The namespace of the resource (optional, defaults to 'default')"`
 }
 
 type ListKubeConfigRolesArgs struct{}
@@ -894,24 +895,28 @@ func describeKubernetesResource(client *taikungoclient.Client, args DescribeKube
 
 	ctx := context.Background()
 	var result string
+	namespace := args.Namespace
+	if namespace == "" {
+		namespace = "default"
+	}
 
 	switch args.Kind {
 	case "Pod":
-		pod, err := clientset.CoreV1().Pods("").Get(ctx, args.Name, metav1.GetOptions{})
+		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, args.Name, metav1.GetOptions{})
 		if err != nil {
 			return createError(nil, err), nil
 		}
 		yamlData, _ := json.MarshalIndent(pod, "", "  ")
 		result = string(yamlData)
 	case "Deployment":
-		deployment, err := clientset.AppsV1().Deployments("").Get(ctx, args.Name, metav1.GetOptions{})
+		deployment, err := clientset.AppsV1().Deployments(namespace).Get(ctx, args.Name, metav1.GetOptions{})
 		if err != nil {
 			return createError(nil, err), nil
 		}
 		yamlData, _ := json.MarshalIndent(deployment, "", "  ")
 		result = string(yamlData)
 	case "Service":
-		service, err := clientset.CoreV1().Services("").Get(ctx, args.Name, metav1.GetOptions{})
+		service, err := clientset.CoreV1().Services(namespace).Get(ctx, args.Name, metav1.GetOptions{})
 		if err != nil {
 			return createError(nil, err), nil
 		}
