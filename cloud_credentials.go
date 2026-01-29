@@ -5,28 +5,21 @@ import (
 	"fmt"
 
 	"github.com/itera-io/taikungoclient"
-	taikuncore "github.com/itera-io/taikungoclient/client"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 )
 
 func listCloudCredentials(client *taikungoclient.Client, args ListCloudCredentialsArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
-	searchCmd := taikuncore.NewCloudCredentialsSearchCommand()
-	if args.Limit > 0 {
-		searchCmd.SetLimit(args.Limit)
-	}
-	if args.Offset > 0 {
-		searchCmd.SetOffset(args.Offset)
-	}
+	// Switch to CloudcredentialsOrgList which is more standard and reliable
+	req := client.Client.CloudCredentialAPI.CloudcredentialsOrgList(ctx).
+		IsAdmin(args.IsAdmin)
+
 	if args.Search != "" {
-		searchCmd.SetSearchTerm(args.Search)
+		req = req.Search(args.Search)
 	}
 
-	searchReq := client.Client.SearchAPI.SearchCloudCredentials(ctx).
-		CloudCredentialsSearchCommand(*searchCmd)
-
-	result, httpResponse, err := searchReq.Execute()
+	result, httpResponse, err := req.Execute()
 	if err != nil {
 		return createError(httpResponse, err), nil
 	}
@@ -36,27 +29,44 @@ func listCloudCredentials(client *taikungoclient.Client, args ListCloudCredentia
 	}
 
 	var credentials []CloudCredentialSummary
-	if result != nil && result.Data != nil {
-		for _, cred := range result.Data {
-			summary := CloudCredentialSummary{
-				ID:               cred.GetId(),
-				Name:             cred.GetName(),
-				CloudType:        cred.GetCloudType(),
-				OrganizationName: cred.GetOrganizationName(),
-			}
-			credentials = append(credentials, summary)
+	for _, cred := range result {
+		summary := CloudCredentialSummary{
+			ID:        cred.GetId(),
+			Name:      cred.GetFullName(),
+			CloudType: string(cred.GetCloudType()),
+		}
+		// Organization name is not directly available in this endpoint,
+		// but we can provide the ID if we want, or leave it empty.
+		// CloudCredentialSummary struct has OrganizationName, so we'll just leave it empty
+		// or show the ID as a string if necessary.
+		if cred.HasOrganizationId() {
+			summary.OrganizationName = fmt.Sprintf("Organization ID: %d", cred.GetOrganizationId())
+		}
+
+		credentials = append(credentials, summary)
+	}
+
+	// Apply manual pagination if requested, since OrgList doesn't support it in API
+	total := len(credentials)
+	start := int(args.Offset)
+	if start > total {
+		start = total
+	}
+
+	end := total
+	if args.Limit > 0 {
+		end = start + int(args.Limit)
+		if end > total {
+			end = total
 		}
 	}
 
-	total := 0
-	if result != nil {
-		total = len(credentials) // Search API doesn't seem to return total count in this struct, but we return what we got
-	}
+	pagedCredentials := credentials[start:end]
 
 	response := CloudCredentialListResponse{
-		Credentials: credentials,
+		Credentials: pagedCredentials,
 		Total:       total,
-		Message:     fmt.Sprintf("Found %d cloud credentials", len(credentials)),
+		Message:     fmt.Sprintf("Found %d cloud credentials", len(pagedCredentials)),
 	}
 
 	return createJSONResponse(response), nil

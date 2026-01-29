@@ -191,9 +191,10 @@ type CloudCredentialListResponse struct {
 }
 
 type ListCloudCredentialsArgs struct {
-	Limit  int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
-	Offset int32  `json:"offset,omitempty" jsonschema:"description=Number of results to skip (optional)"`
-	Search string `json:"search,omitempty" jsonschema:"description=Search term to filter results (optional)"`
+	Limit   int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
+	Offset  int32  `json:"offset,omitempty" jsonschema:"description=Number of results to skip (optional)"`
+	Search  string `json:"search,omitempty" jsonschema:"description=Search term to filter results (optional)"`
+	IsAdmin bool   `json:"isAdmin,omitempty" jsonschema:"description=Whether to list as admin (optional)"`
 }
 
 // createJSONResponse creates a JSON response using NewTextContent
