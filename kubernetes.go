@@ -2,16 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/itera-io/taikungoclient"
 	taikuncore "github.com/itera-io/taikungoclient/client"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type PodSummary struct {
@@ -136,6 +138,105 @@ type StatefulSetSummary struct {
 	Age           string `json:"age"`
 }
 
+type cursorPaginatedResponse[T any] struct {
+	Data       []T     `json:"data"`
+	Limit      int32   `json:"limit"`
+	HasMore    bool    `json:"hasMore"`
+	TotalCount int64   `json:"totalCount"`
+	NextCursor *string `json:"nextCursor"`
+}
+
+type podListItem struct {
+	State        string `json:"state"`
+	Name         string `json:"name"`
+	Ready        string `json:"ready"`
+	RestartCount int32  `json:"restartCount"`
+	CreatedAt    string `json:"createdAt"`
+	Namespace    string `json:"namespace"`
+	Node         string `json:"node"`
+	IP           string `json:"ip"`
+}
+
+type deploymentListItem struct {
+	State     string   `json:"state"`
+	Name      string   `json:"name"`
+	Ready     string   `json:"ready"`
+	CreatedAt string   `json:"createdAt"`
+	Namespace string   `json:"namespace"`
+	Images    []string `json:"images"`
+}
+
+type serviceListItem struct {
+	Name       string `json:"name"`
+	Namespace  string `json:"namespace"`
+	Type       string `json:"type"`
+	ClusterIP  string `json:"clusterIp"`
+	ExternalIP string `json:"externalIp"`
+	CreatedAt  string `json:"createdAt"`
+}
+
+type nodeListItem struct {
+	State   string `json:"state"`
+	Name    string `json:"name"`
+	Role    string `json:"role"`
+	Version string `json:"version"`
+	IP      string `json:"ip"`
+}
+
+type configMapListItem struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type secretListItem struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Type      string `json:"type"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type ingressListItem struct {
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace"`
+	Target       string `json:"target"`
+	Default      string `json:"default"`
+	IngressClass string `json:"ingressClass"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type daemonSetListItem struct {
+	Status    string `json:"status"`
+	Name      string `json:"name"`
+	Desired   int32  `json:"desired"`
+	Current   int32  `json:"current"`
+	Ready     int32  `json:"ready"`
+	Available string `json:"available"`
+	CreatedAt string `json:"createdAt"`
+	Namespace string `json:"namespace"`
+	Image     string `json:"image"`
+}
+
+type pvcListItem struct {
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace"`
+	Status       string `json:"status"`
+	Volume       string `json:"volume"`
+	Capacity     string `json:"capacity"`
+	AccessModes  string `json:"accessModes"`
+	StorageClass string `json:"storageClass"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type statefulSetListItem struct {
+	State     string   `json:"state"`
+	Name      string   `json:"name"`
+	Ready     string   `json:"ready"`
+	CreatedAt string   `json:"createdAt"`
+	Namespace string   `json:"namespace"`
+	Images    []string `json:"images"`
+}
+
 func formatAge(timestamp metav1.Time) string {
 	if timestamp.IsZero() {
 		return "Unknown"
@@ -149,6 +250,42 @@ func formatAge(timestamp metav1.Time) string {
 	}
 
 	return duration.String()
+}
+
+func formatAgeFromString(createdAt string) string {
+	if createdAt == "" {
+		return "Unknown"
+	}
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
+		if parsed, err := time.Parse(layout, createdAt); err == nil {
+			return formatAge(metav1.NewTime(parsed))
+		}
+	}
+	return createdAt
+}
+
+func parseReadyCounts(ready string) (int32, int32) {
+	parts := strings.Split(ready, "/")
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	readyCount, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, 0
+	}
+	totalCount, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return 0, 0
+	}
+	return int32(readyCount), int32(totalCount)
+}
+
+func parseInt32(value string) int32 {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0
+	}
+	return int32(parsed)
 }
 
 type DeleteKubernetesResourceArgs struct {
@@ -334,364 +471,352 @@ func listKubeConfigRoles(client *taikungoclient.Client, _ ListKubeConfigRolesArg
 	return createJSONResponse(roleSummaries), nil
 }
 
-func getKubernetesClientset(client *taikungoclient.Client, projectID int32) (*kubernetes.Clientset, error) {
-	ctx := context.Background()
-	kubeconfig, httpResponse, err := client.Client.KubernetesAPI.KubernetesKubeConfig(ctx, projectID).Execute()
+func fetchKubernetesListPage[T any](ctx context.Context, client *taikungoclient.Client, projectID int32, resource string, limit int32, cursor string, searchTerm string) (cursorPaginatedResponse[T], *http.Response, error) {
+	var result cursorPaginatedResponse[T]
+
+	if client == nil || client.Client == nil {
+		return result, nil, fmt.Errorf("taikun client is not initialized")
+	}
+
+	cfg := client.Client.GetConfig()
+	if cfg == nil || cfg.HTTPClient == nil {
+		return result, nil, fmt.Errorf("taikun client config is not available")
+	}
+
+	baseURL := fmt.Sprintf("%s://%s", cfg.Scheme, cfg.Host)
+	endpoint := fmt.Sprintf("%s/api/v1/kubernetes/list/%d/%s", baseURL, projectID, resource)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get kubeconfig: %v", err)
-	}
-	if httpResponse.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get kubeconfig: HTTP %d", httpResponse.StatusCode)
+		return result, nil, err
 	}
 
-	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig.GetData()))
+	query := req.URL.Query()
+	if limit > 0 {
+		query.Set("Limit", fmt.Sprintf("%d", limit))
+	}
+	if cursor != "" {
+		query.Set("Cursor", cursor)
+	}
+	if searchTerm != "" {
+		query.Set("SearchTerm", searchTerm)
+	}
+	req.URL.RawQuery = query.Encode()
+	req.Header.Set("Accept", "application/json")
+
+	response, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create REST config: %v", err)
+		return result, response, err
 	}
 
-	// Set a timeout for the kubernetes client testing
-	config.Timeout = 30 * time.Second
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return result, response, fmt.Errorf("request failed with status %d", response.StatusCode)
+	}
 
-	clientset, err := kubernetes.NewForConfig(config)
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create clientset: %v", err)
+		return result, response, err
 	}
 
-	return clientset, nil
+	if err := json.Unmarshal(body, &result); err != nil {
+		return result, response, err
+	}
+
+	return result, response, nil
+}
+
+func fetchKubernetesListItems[T any](ctx context.Context, client *taikungoclient.Client, projectID int32, resource string, limit int32, offset int32, searchTerm string) ([]T, *http.Response, error) {
+	var allItems []T
+	var cursor string
+	var lastResponse *http.Response
+	perPage := limit
+	if perPage <= 0 {
+		perPage = 50
+	}
+
+	remainingOffset := offset
+	remainingLimit := limit
+
+	for {
+		page, response, err := fetchKubernetesListPage[T](ctx, client, projectID, resource, perPage, cursor, searchTerm)
+		lastResponse = response
+		if err != nil {
+			return nil, response, err
+		}
+
+		items := page.Data
+		if remainingOffset > 0 {
+			if int32(len(items)) <= remainingOffset {
+				remainingOffset -= int32(len(items))
+				items = nil
+			} else {
+				items = items[remainingOffset:]
+				remainingOffset = 0
+			}
+		}
+
+		if remainingLimit > 0 {
+			needed := remainingLimit - int32(len(allItems))
+			if needed <= 0 {
+				break
+			}
+			if int32(len(items)) > needed {
+				items = items[:needed]
+			}
+		}
+
+		allItems = append(allItems, items...)
+
+		if remainingLimit > 0 && int32(len(allItems)) >= remainingLimit {
+			break
+		}
+
+		if !page.HasMore || page.NextCursor == nil || *page.NextCursor == "" {
+			break
+		}
+
+		cursor = *page.NextCursor
+	}
+
+	return allItems, lastResponse, nil
+}
+
+func listKubernetesError(kind string, response *http.Response, err error) *mcp_golang.ToolResponse {
+	if response != nil && (response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices) {
+		return createError(response, err)
+	}
+	errorResp := ErrorResponse{
+		Error: fmt.Sprintf("Failed to list %s: %v", kind, err),
+	}
+	return createJSONResponse(errorResp)
 }
 
 func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
-	clientset, err := getKubernetesClientset(client, args.ProjectID)
-	if err != nil {
-		errorResp := ErrorResponse{
-			Error:   fmt.Sprintf("Failed to initialize Kubernetes client: %v", err),
-			Details: "Make sure the project has a valid kubeconfig and cluster is accessible",
-		}
-		return createJSONResponse(errorResp), nil
-	}
-
 	ctx := context.Background()
 	var result interface{}
 
 	switch args.Kind {
 	case "Pods":
-		pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+		pods, response, err := fetchKubernetesListItems[podListItem](ctx, client, args.ProjectID, "pods", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Pods", response, err), nil
 		}
-
-		var podSummaries []PodSummary
-		for _, pod := range pods.Items {
-			var restarts int32
-			for _, containerStatus := range pod.Status.ContainerStatuses {
-				restarts += containerStatus.RestartCount
-			}
-			for _, containerStatus := range pod.Status.InitContainerStatuses {
-				restarts += containerStatus.RestartCount
-			}
-			for _, containerStatus := range pod.Status.EphemeralContainerStatuses {
-				restarts += containerStatus.RestartCount
-			}
-
-			startTime := ""
-			if pod.Status.StartTime != nil {
-				startTime = pod.Status.StartTime.Format(time.RFC3339)
-			}
-
-			podSummaries = append(podSummaries, PodSummary{
+		summaries := make([]PodSummary, 0, len(pods))
+		for _, pod := range pods {
+			summaries = append(summaries, PodSummary{
 				Name:      pod.Name,
 				Namespace: pod.Namespace,
-				Status:    string(pod.Status.Phase),
-				PodIP:     pod.Status.PodIP,
-				StartTime: startTime,
-				Restarts:  restarts,
+				Status:    pod.State,
+				PodIP:     pod.IP,
+				StartTime: pod.CreatedAt,
+				Restarts:  pod.RestartCount,
 			})
 		}
-		result = podSummaries
+		result = summaries
 	case "Deployments":
-		deployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
+		deployments, response, err := fetchKubernetesListItems[deploymentListItem](ctx, client, args.ProjectID, "deployments", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Deployments", response, err), nil
 		}
-		var summaries []DeploymentSummary
-		for _, d := range deployments.Items {
+		summaries := make([]DeploymentSummary, 0, len(deployments))
+		for _, deployment := range deployments {
+			readyCount, totalCount := parseReadyCounts(deployment.Ready)
 			summaries = append(summaries, DeploymentSummary{
-				Name:              d.Name,
-				Namespace:         d.Namespace,
-				Replicas:          *d.Spec.Replicas,
-				ReadyReplicas:     d.Status.ReadyReplicas,
-				UpdatedReplicas:   d.Status.UpdatedReplicas,
-				AvailableReplicas: d.Status.AvailableReplicas,
-				Age:               formatAge(d.CreationTimestamp),
+				Name:              deployment.Name,
+				Namespace:         deployment.Namespace,
+				Replicas:          totalCount,
+				ReadyReplicas:     readyCount,
+				UpdatedReplicas:   0,
+				AvailableReplicas: 0,
+				Age:               formatAgeFromString(deployment.CreatedAt),
 			})
 		}
 		result = summaries
 	case "Services":
-		services, err := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+		services, response, err := fetchKubernetesListItems[serviceListItem](ctx, client, args.ProjectID, "service", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Services", response, err), nil
 		}
-		var summaries []ServiceSummary
-		for _, s := range services.Items {
-			var ports []string
-			for _, p := range s.Spec.Ports {
-				ports = append(ports, fmt.Sprintf("%d/%s", p.Port, p.Protocol))
-			}
+		summaries := make([]ServiceSummary, 0, len(services))
+		for _, service := range services {
 			summaries = append(summaries, ServiceSummary{
-				Name:      s.Name,
-				Namespace: s.Namespace,
-				Type:      string(s.Spec.Type),
-				ClusterIP: s.Spec.ClusterIP,
-				Ports:     ports,
-				Age:       formatAge(s.CreationTimestamp),
+				Name:      service.Name,
+				Namespace: service.Namespace,
+				Type:      service.Type,
+				ClusterIP: service.ClusterIP,
+				Ports:     nil,
+				Age:       formatAgeFromString(service.CreatedAt),
 			})
 		}
 		result = summaries
 	case "Namespaces":
-		namespaces, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		namespaces, response, err := client.Client.KubernetesAPI.KubernetesNamespaceList(ctx, args.ProjectID).Execute()
 		if err != nil {
-			return createError(nil, err), nil
+			return createError(response, err), nil
 		}
 		var summaries []NamespaceSummary
-		for _, ns := range namespaces.Items {
+		for _, name := range namespaces {
+			if args.SearchTerm != "" && !strings.Contains(strings.ToLower(name), strings.ToLower(args.SearchTerm)) {
+				continue
+			}
 			summaries = append(summaries, NamespaceSummary{
-				Name:   ns.Name,
-				Status: string(ns.Status.Phase),
-				Age:    formatAge(ns.CreationTimestamp),
+				Name:   name,
+				Status: "",
+				Age:    "",
 			})
+		}
+		if args.Offset > 0 || args.Limit > 0 {
+			start := int(args.Offset)
+			if start > len(summaries) {
+				start = len(summaries)
+			}
+			end := len(summaries)
+			if args.Limit > 0 && start+int(args.Limit) < end {
+				end = start + int(args.Limit)
+			}
+			summaries = summaries[start:end]
 		}
 		result = summaries
 	case "ConfigMaps":
-		configMaps, err := clientset.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{})
+		configMaps, response, err := fetchKubernetesListItems[configMapListItem](ctx, client, args.ProjectID, "configmap", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("ConfigMaps", response, err), nil
 		}
-		var summaries []ConfigMapSummary
-		for _, cm := range configMaps.Items {
+		summaries := make([]ConfigMapSummary, 0, len(configMaps))
+		for _, cm := range configMaps {
 			summaries = append(summaries, ConfigMapSummary{
 				Name:      cm.Name,
 				Namespace: cm.Namespace,
-				DataCount: len(cm.Data),
-				Age:       formatAge(cm.CreationTimestamp),
+				DataCount: 0,
+				Age:       formatAgeFromString(cm.CreatedAt),
 			})
 		}
 		result = summaries
 	case "Secrets":
-		secrets, err := clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{})
+		secrets, response, err := fetchKubernetesListItems[secretListItem](ctx, client, args.ProjectID, "secret", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Secrets", response, err), nil
 		}
-		var summaries []SecretSummary
-		for _, s := range secrets.Items {
+		summaries := make([]SecretSummary, 0, len(secrets))
+		for _, secret := range secrets {
 			summaries = append(summaries, SecretSummary{
-				Name:      s.Name,
-				Namespace: s.Namespace,
-				Type:      string(s.Type),
-				DataCount: len(s.Data),
-				Age:       formatAge(s.CreationTimestamp),
+				Name:      secret.Name,
+				Namespace: secret.Namespace,
+				Type:      secret.Type,
+				DataCount: 0,
+				Age:       formatAgeFromString(secret.CreatedAt),
 			})
 		}
 		result = summaries
 	case "Ingress":
-		ingresses, err := clientset.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{})
+		ingresses, response, err := fetchKubernetesListItems[ingressListItem](ctx, client, args.ProjectID, "ingress", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Ingress", response, err), nil
 		}
-		var summaries []IngressSummary
-		for _, ing := range ingresses.Items {
+		summaries := make([]IngressSummary, 0, len(ingresses))
+		for _, ingress := range ingresses {
 			var hosts []string
-			for _, rule := range ing.Spec.Rules {
-				hosts = append(hosts, rule.Host)
-			}
-			address := ""
-			if len(ing.Status.LoadBalancer.Ingress) > 0 {
-				address = ing.Status.LoadBalancer.Ingress[0].IP
+			if ingress.Target != "" {
+				hosts = []string{ingress.Target}
 			}
 			summaries = append(summaries, IngressSummary{
-				Name:      ing.Name,
-				Namespace: ing.Namespace,
+				Name:      ingress.Name,
+				Namespace: ingress.Namespace,
 				Hosts:     hosts,
-				Address:   address,
-				Age:       formatAge(ing.CreationTimestamp),
+				Address:   "",
+				Age:       formatAgeFromString(ingress.CreatedAt),
 			})
 		}
 		result = summaries
 	case "CronJobs":
-		cronJobs, err := clientset.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		var summaries []CronJobSummary
-		for _, cj := range cronJobs.Items {
-			suspend := false
-			if cj.Spec.Suspend != nil {
-				suspend = *cj.Spec.Suspend
-			}
-			lastSchedule := ""
-			if cj.Status.LastScheduleTime != nil {
-				lastSchedule = formatAge(*cj.Status.LastScheduleTime)
-			}
-			summaries = append(summaries, CronJobSummary{
-				Name:             cj.Name,
-				Namespace:        cj.Namespace,
-				Schedule:         cj.Spec.Schedule,
-				Suspend:          suspend,
-				Active:           len(cj.Status.Active),
-				LastScheduleTime: lastSchedule,
-				Age:              formatAge(cj.CreationTimestamp),
-			})
-		}
-		result = summaries
+		return createJSONResponse(ErrorResponse{
+			Error: "CronJobs listing is not available through the Taikun Kubernetes list API",
+		}), nil
 	case "DaemonSets":
-		daemonSets, err := clientset.AppsV1().DaemonSets("").List(ctx, metav1.ListOptions{})
+		daemonSets, response, err := fetchKubernetesListItems[daemonSetListItem](ctx, client, args.ProjectID, "daemonset", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("DaemonSets", response, err), nil
 		}
-		var summaries []DaemonSetSummary
-		for _, ds := range daemonSets.Items {
+		summaries := make([]DaemonSetSummary, 0, len(daemonSets))
+		for _, ds := range daemonSets {
 			summaries = append(summaries, DaemonSetSummary{
 				Name:             ds.Name,
 				Namespace:        ds.Namespace,
-				DesiredScheduled: ds.Status.DesiredNumberScheduled,
-				CurrentScheduled: ds.Status.CurrentNumberScheduled,
-				NumberReady:      ds.Status.NumberReady,
-				NumberAvailable:  ds.Status.NumberAvailable,
-				Age:              formatAge(ds.CreationTimestamp),
+				DesiredScheduled: ds.Desired,
+				CurrentScheduled: ds.Current,
+				NumberReady:      ds.Ready,
+				NumberAvailable:  parseInt32(ds.Available),
+				Age:              formatAgeFromString(ds.CreatedAt),
 			})
 		}
 		result = summaries
 	case "Jobs":
-		jobs, err := clientset.BatchV1().Jobs("").List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		var summaries []JobSummary
-		for _, j := range jobs.Items {
-			completions := fmt.Sprintf("%d/%d", j.Status.Succeeded, *j.Spec.Completions)
-			if j.Spec.Completions == nil {
-				completions = fmt.Sprintf("%d/<nil>", j.Status.Succeeded)
-			}
-			summaries = append(summaries, JobSummary{
-				Name:        j.Name,
-				Namespace:   j.Namespace,
-				Completions: completions,
-				Succeeded:   j.Status.Succeeded,
-				Age:         formatAge(j.CreationTimestamp),
-			})
-		}
-		result = summaries
+		return createJSONResponse(ErrorResponse{
+			Error: "Jobs listing is not available through the Taikun Kubernetes list API",
+		}), nil
 	case "Nodes":
-		nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		nodes, response, err := fetchKubernetesListItems[nodeListItem](ctx, client, args.ProjectID, "nodes", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Nodes", response, err), nil
 		}
-		var summaries []NodeSummary
-		for _, n := range nodes.Items {
-			status := "Unknown"
-			for _, cond := range n.Status.Conditions {
-				if cond.Type == "Ready" {
-					if cond.Status == "True" {
-						status = "Ready"
-					} else {
-						status = "NotReady"
-					}
-					break
-				}
-			}
-
-			// Simple role detection
-			roles := "<none>"
-			if _, ok := n.Labels["node-role.kubernetes.io/control-plane"]; ok {
-				roles = "control-plane"
-			} else if _, ok := n.Labels["node-role.kubernetes.io/master"]; ok {
-				roles = "control-plane"
-			} else if _, ok := n.Labels["node-role.kubernetes.io/worker"]; ok {
-				roles = "worker"
-			}
-
+		summaries := make([]NodeSummary, 0, len(nodes))
+		for _, node := range nodes {
 			summaries = append(summaries, NodeSummary{
-				Name:             n.Name,
-				Status:           status,
-				Roles:            roles,
-				Version:          n.Status.NodeInfo.KubeletVersion,
-				OSImage:          n.Status.NodeInfo.OSImage,
-				KernelVersion:    n.Status.NodeInfo.KernelVersion,
-				ContainerRuntime: n.Status.NodeInfo.ContainerRuntimeVersion,
-				Age:              formatAge(n.CreationTimestamp),
+				Name:             node.Name,
+				Status:           node.State,
+				Roles:            node.Role,
+				Version:          node.Version,
+				OSImage:          "",
+				KernelVersion:    "",
+				ContainerRuntime: "",
+				Age:              "",
 			})
 		}
 		result = summaries
 	case "Pvcs":
-		pvcs, err := clientset.CoreV1().PersistentVolumeClaims("").List(ctx, metav1.ListOptions{})
+		pvcs, response, err := fetchKubernetesListItems[pvcListItem](ctx, client, args.ProjectID, "pvc", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Pvcs", response, err), nil
 		}
-		var summaries []PvcSummary
-		for _, pvc := range pvcs.Items {
-			capacity := ""
-			if q, ok := pvc.Status.Capacity["storage"]; ok {
-				capacity = q.String()
-			}
-			storageClass := ""
-			if pvc.Spec.StorageClassName != nil {
-				storageClass = *pvc.Spec.StorageClassName
-			}
-			modes := ""
-			for _, m := range pvc.Spec.AccessModes {
-				if modes != "" {
-					modes += ","
-				}
-				modes += string(m)
-			}
+		summaries := make([]PvcSummary, 0, len(pvcs))
+		for _, pvc := range pvcs {
 			summaries = append(summaries, PvcSummary{
 				Name:         pvc.Name,
 				Namespace:    pvc.Namespace,
-				Status:       string(pvc.Status.Phase),
-				Volume:       pvc.Spec.VolumeName,
-				Capacity:     capacity,
-				AccessModes:  modes,
-				StorageClass: storageClass,
-				Age:          formatAge(pvc.CreationTimestamp),
+				Status:       pvc.Status,
+				Volume:       pvc.Volume,
+				Capacity:     pvc.Capacity,
+				AccessModes:  pvc.AccessModes,
+				StorageClass: pvc.StorageClass,
+				Age:          formatAgeFromString(pvc.CreatedAt),
 			})
 		}
 		result = summaries
 	case "StorageClasses":
-		storageClasses, err := clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return createError(nil, err), nil
-		}
-		var summaries []StorageClassSummary
-		for _, sc := range storageClasses.Items {
-			reclaimPolicy := ""
-			if sc.ReclaimPolicy != nil {
-				reclaimPolicy = string(*sc.ReclaimPolicy)
-			}
-			summaries = append(summaries, StorageClassSummary{
-				Name:          sc.Name,
-				Provisioner:   sc.Provisioner,
-				ReclaimPolicy: reclaimPolicy,
-				Age:           formatAge(sc.CreationTimestamp),
-			})
-		}
-		result = summaries
+		return createJSONResponse(ErrorResponse{
+			Error: "StorageClasses listing is not available through the Taikun Kubernetes list API",
+		}), nil
 	case "Sts":
-		statefulSets, err := clientset.AppsV1().StatefulSets("").List(ctx, metav1.ListOptions{})
+		statefulSets, response, err := fetchKubernetesListItems[statefulSetListItem](ctx, client, args.ProjectID, "sts", args.Limit, args.Offset, args.SearchTerm)
 		if err != nil {
-			return createError(nil, err), nil
+			return listKubernetesError("Sts", response, err), nil
 		}
-		var summaries []StatefulSetSummary
-		for _, sts := range statefulSets.Items {
+		summaries := make([]StatefulSetSummary, 0, len(statefulSets))
+		for _, sts := range statefulSets {
+			readyCount, totalCount := parseReadyCounts(sts.Ready)
 			summaries = append(summaries, StatefulSetSummary{
 				Name:          sts.Name,
 				Namespace:     sts.Namespace,
-				Replicas:      *sts.Spec.Replicas,
-				ReadyReplicas: sts.Status.ReadyReplicas,
-				Age:           formatAge(sts.CreationTimestamp),
+				Replicas:      totalCount,
+				ReadyReplicas: readyCount,
+				Age:           formatAgeFromString(sts.CreatedAt),
 			})
 		}
 		result = summaries
 	default:
-		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Unsupported resource kind for project-scoped listing: %s. Please use one of: Pods, Deployments, Services, Namespaces, ConfigMaps, Secrets, Ingress, CronJobs, DaemonSets, Jobs, Nodes, Pvcs, StorageClasses, Sts.", args.Kind))), nil
+		return createJSONResponse(ErrorResponse{
+			Error: fmt.Sprintf("Unsupported resource kind: %s", args.Kind),
+		}), nil
 	}
 
 	return createJSONResponse(result), nil
