@@ -412,16 +412,61 @@ func createKubeConfig(client *taikungoclient.Client, args CreateKubeConfigArgs) 
 func getKubeConfig(client *taikungoclient.Client, args GetKubeConfigArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
-	kubeconfig, httpResponse, err := client.Client.KubernetesAPI.KubernetesKubeConfig(ctx, args.ProjectID).Execute()
+	listRequest := client.Client.KubeConfigAPI.KubeconfigList(ctx).
+		ProjectId(args.ProjectID).
+		Limit(100)
+	listResp, listHTTPResponse, err := listRequest.Execute()
 	if err != nil {
-		return createError(httpResponse, err), nil
+		return createError(listHTTPResponse, err), nil
 	}
 
-	if errorResp := checkResponse(httpResponse, "get kubeconfig"); errorResp != nil {
+	if errorResp := checkResponse(listHTTPResponse, "list kubeconfigs"); errorResp != nil {
 		return errorResp, nil
 	}
 
-	if kubeconfig == nil {
+	var kubeconfigId int32
+	var fallbackId int32
+	if listResp != nil {
+		for _, item := range listResp.Data {
+			if item.ProjectId != args.ProjectID || !item.CanDownload {
+				continue
+			}
+			if item.KubeConfigRoleName == "cluster-admin" || item.KubeConfigRoleName == "admin" {
+				kubeconfigId = item.Id
+				break
+			}
+			if fallbackId == 0 {
+				fallbackId = item.Id
+			}
+		}
+	}
+
+	if kubeconfigId == 0 {
+		kubeconfigId = fallbackId
+	}
+
+	if kubeconfigId == 0 {
+		errorResp := ErrorResponse{
+			Error: fmt.Sprintf("No downloadable kubeconfig found for project %d", args.ProjectID),
+		}
+		return createJSONResponse(errorResp), nil
+	}
+
+	downloadCmd := taikuncore.NewDownloadKubeConfigCommand()
+	downloadCmd.SetId(kubeconfigId)
+	downloadCmd.SetProjectId(args.ProjectID)
+	kubeconfig, downloadHTTPResponse, err := client.Client.KubeConfigAPI.KubeconfigDownload(ctx).
+		DownloadKubeConfigCommand(*downloadCmd).
+		Execute()
+	if err != nil {
+		return createError(downloadHTTPResponse, err), nil
+	}
+
+	if errorResp := checkResponse(downloadHTTPResponse, "download kubeconfig"); errorResp != nil {
+		return errorResp, nil
+	}
+
+	if kubeconfig == "" {
 		errorResp := ErrorResponse{
 			Error: fmt.Sprintf("Kubeconfig for project %d not found", args.ProjectID),
 		}
@@ -434,7 +479,7 @@ func getKubeConfig(client *taikungoclient.Client, args GetKubeConfigArgs) (*mcp_
 	}
 
 	resp := KubeConfigResponseData{
-		KubeConfig: kubeconfig.GetData(),
+		KubeConfig: kubeconfig,
 		Success:    true,
 	}
 
