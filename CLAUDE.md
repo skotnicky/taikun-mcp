@@ -68,6 +68,8 @@ When unsure about API response fields:
 - **Pointer Fields**: Check for `!= nil` before dereferencing
 - **Pagination**: Most list APIs support `limit`, `offset`, and `search` parameters
 - **Error Handling**: **ALWAYS use `createError()` for ALL Taikun API errors** - provides clear, detailed error messages from the API. Use `ErrorResponse` only for custom validation errors
+- **AWS LoadBalancer**: When creating LoadBalancer Services on AWS, set `service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance` to avoid ENI resolution issues with pod IP targets.
+- **Project Changes**: If you add servers to an already deployed project, you must run `commit-project` again to apply the changes.
 
 ## Project Structure
 
