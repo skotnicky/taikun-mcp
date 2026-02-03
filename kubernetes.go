@@ -2,18 +2,23 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/itera-io/taikungoclient"
 	taikuncore "github.com/itera-io/taikungoclient/client"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes/scheme"
 )
 
 type PodSummary struct {
@@ -288,6 +293,114 @@ func parseInt32(value string) int32 {
 	return int32(parsed)
 }
 
+func isLikelyKubernetesYaml(payload string) bool {
+	trimmed := strings.TrimSpace(payload)
+	if trimmed == "" {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "---") {
+		return true
+	}
+	if strings.Contains(trimmed, "apiVersion:") || strings.Contains(trimmed, "kind:") {
+		return true
+	}
+	return false
+}
+
+func tryDecodeBase64Yaml(payload string) (string, bool) {
+	if strings.TrimSpace(payload) == "" {
+		return "", false
+	}
+	cleaned := strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '\n', '\r', '\t':
+			return -1
+		default:
+			return r
+		}
+	}, payload)
+	decoded, err := base64.StdEncoding.DecodeString(cleaned)
+	if err != nil {
+		return "", false
+	}
+	if !utf8.Valid(decoded) {
+		return "", false
+	}
+	text := strings.TrimSpace(string(decoded))
+	if !isLikelyKubernetesYaml(text) {
+		return "", false
+	}
+	return text, true
+}
+
+func normalizeYamlInput(payload string) (string, error) {
+	trimmed := strings.TrimSpace(payload)
+	if trimmed == "" {
+		return "", errors.New("yaml input is empty")
+	}
+	if decoded, ok := tryDecodeBase64Yaml(trimmed); ok {
+		return decoded, nil
+	}
+	return trimmed, nil
+}
+
+func normalizeYamlOutput(payload string) string {
+	if decoded, ok := tryDecodeBase64Yaml(payload); ok {
+		return strings.ReplaceAll(decoded, "\r\n", "\n")
+	}
+	return strings.ReplaceAll(payload, "\r\n", "\n")
+}
+
+func validateKubernetesYaml(payload string) error {
+	decoder := yaml.NewYAMLOrJSONDecoder(strings.NewReader(payload), 4096)
+	for {
+		var raw map[string]interface{}
+		if err := decoder.Decode(&raw); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return fmt.Errorf("invalid YAML: %w", err)
+		}
+		if len(raw) == 0 {
+			continue
+		}
+		jsonData, err := json.Marshal(raw)
+		if err != nil {
+			return fmt.Errorf("failed to serialize YAML: %w", err)
+		}
+		if _, _, err := scheme.Codecs.UniversalDeserializer().Decode(jsonData, nil, nil); err != nil {
+			return fmt.Errorf("schema validation failed: %w", err)
+		}
+	}
+	return nil
+}
+
+func splitKubernetesYaml(payload string) ([]string, error) {
+	decoder := yaml.NewYAMLOrJSONDecoder(strings.NewReader(payload), 4096)
+	var docs []string
+	for {
+		var raw map[string]interface{}
+		if err := decoder.Decode(&raw); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("invalid YAML: %w", err)
+		}
+		if len(raw) == 0 {
+			continue
+		}
+		jsonData, err := json.Marshal(raw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize YAML: %w", err)
+		}
+		docs = append(docs, string(jsonData))
+	}
+	if len(docs) == 0 {
+		return nil, errors.New("yaml input contains no resources")
+	}
+	return docs, nil
+}
+
 type DeleteKubernetesResourceArgs struct {
 	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID of the resource"`
 	Kind      string `json:"kind" jsonschema:"required,description=The kind of the resource (e.g., Pod, Deployment, Service)"`
@@ -297,7 +410,7 @@ type DeleteKubernetesResourceArgs struct {
 
 type DeployKubernetesResourcesArgs struct {
 	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID to deploy the resources to"`
-	YAML      string `json:"yaml" jsonschema:"required,description=The Kubernetes resources in YAML format"`
+	YAML      string `json:"yaml" jsonschema:"required,description=The Kubernetes resources in YAML format (raw or base64-encoded)"`
 }
 
 type CreateKubeConfigArgs struct {
@@ -333,7 +446,7 @@ type DescribeKubernetesResourceArgs struct {
 type PatchKubernetesResourceArgs struct {
 	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID of the resource"`
 	Name      string `json:"name" jsonschema:"required,description=The name of the resource to patch"`
-	Yaml      string `json:"yaml" jsonschema:"required,description=The YAML patch to apply to the resource"`
+	Yaml      string `json:"yaml" jsonschema:"required,description=The YAML patch to apply to the resource (raw or base64-encoded)"`
 	Namespace string `json:"namespace,omitempty" jsonschema:"description=The namespace of the resource (optional, defaults to 'default')"`
 }
 
@@ -342,22 +455,33 @@ type ListKubeConfigRolesArgs struct{}
 func deployKubernetesResources(client *taikungoclient.Client, args DeployKubernetesResourcesArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
-	createCmd := taikuncore.NewCreateKubernetesResourceCommand(args.ProjectID, *taikuncore.NewNullableString(&args.YAML))
-
-	httpResponse, err := client.Client.KubernetesAPI.KubernetesCreateResource(ctx).
-		CreateKubernetesResourceCommand(*createCmd).
-		Execute()
-
+	normalizedYaml, err := normalizeYamlInput(args.YAML)
 	if err != nil {
-		return createError(httpResponse, err), nil
+		return createJSONResponse(ErrorResponse{Error: err.Error()}), nil
 	}
-
-	if errorResp := checkResponse(httpResponse, "deploy kubernetes resources"); errorResp != nil {
-		return errorResp, nil
+	docs, err := splitKubernetesYaml(normalizedYaml)
+	if err != nil {
+		return createJSONResponse(ErrorResponse{Error: err.Error()}), nil
+	}
+	for _, doc := range docs {
+		if err := validateKubernetesYaml(doc); err != nil {
+			return createJSONResponse(ErrorResponse{Error: err.Error()}), nil
+		}
+		encodedYaml := base64.StdEncoding.EncodeToString([]byte(doc))
+		createCmd := taikuncore.NewCreateKubernetesResourceCommand(args.ProjectID, *taikuncore.NewNullableString(&encodedYaml))
+		httpResponse, err := client.Client.KubernetesAPI.KubernetesCreateResource(ctx).
+			CreateKubernetesResourceCommand(*createCmd).
+			Execute()
+		if err != nil {
+			return createError(httpResponse, err), nil
+		}
+		if errorResp := checkResponse(httpResponse, "deploy kubernetes resources"); errorResp != nil {
+			return errorResp, nil
+		}
 	}
 
 	successResp := SuccessResponse{
-		Message: "Kubernetes resources deployed successfully",
+		Message: fmt.Sprintf("Kubernetes resources deployed successfully (%d resource(s))", len(docs)),
 		Success: true,
 	}
 
@@ -479,7 +603,7 @@ func getKubeConfig(client *taikungoclient.Client, args GetKubeConfigArgs) (*mcp_
 	}
 
 	resp := KubeConfigResponseData{
-		KubeConfig: kubeconfig,
+		KubeConfig: strings.ReplaceAll(kubeconfig, "\r\n", "\n"),
 		Success:    true,
 	}
 
@@ -872,7 +996,7 @@ func describeKubernetesResource(client *taikungoclient.Client, args DescribeKube
 
 	kind, err := taikuncore.NewEKubernetesResourceFromValue(args.Kind)
 	if err != nil {
-		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Invalid resource kind: %s", args.Kind))), nil
+		return createJSONResponse(ErrorResponse{Error: fmt.Sprintf("Invalid resource kind: %s", args.Kind)}), nil
 	}
 
 	describeCmd := taikuncore.NewDescribeKubernetesResourceCommand(args.ProjectID, args.Name, *kind)
@@ -892,7 +1016,15 @@ func describeKubernetesResource(client *taikungoclient.Client, args DescribeKube
 		return errorResp, nil
 	}
 
-	return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(description)), nil
+	type DescribeResponse struct {
+		YAML    string `json:"yaml"`
+		Success bool   `json:"success"`
+	}
+	resp := DescribeResponse{
+		YAML:    normalizeYamlOutput(description),
+		Success: true,
+	}
+	return createJSONResponse(resp), nil
 }
 
 func deleteKubernetesResource(client *taikungoclient.Client, args DeleteKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
@@ -940,7 +1072,16 @@ func deleteKubernetesResource(client *taikungoclient.Client, args DeleteKubernet
 func patchKubernetesResource(client *taikungoclient.Client, args PatchKubernetesResourceArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
-	patchCmd := taikuncore.NewPatchKubernetesResourceCommand(args.ProjectID, args.Yaml, args.Name)
+	normalizedYaml, err := normalizeYamlInput(args.Yaml)
+	if err != nil {
+		return createJSONResponse(ErrorResponse{Error: err.Error()}), nil
+	}
+	if err := validateKubernetesYaml(normalizedYaml); err != nil {
+		return createJSONResponse(ErrorResponse{Error: err.Error()}), nil
+	}
+
+	encodedYaml := base64.StdEncoding.EncodeToString([]byte(normalizedYaml))
+	patchCmd := taikuncore.NewPatchKubernetesResourceCommand(args.ProjectID, encodedYaml, args.Name)
 	if args.Namespace != "" {
 		patchCmd.SetNamespace(args.Namespace)
 	}
