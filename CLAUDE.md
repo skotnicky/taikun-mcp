@@ -70,9 +70,11 @@ When unsure about API response fields:
 - **Pointer Fields**: Check for `!= nil` before dereferencing
 - **Pagination**: Most list APIs support `limit`, `offset`, and `search` parameters
 - **Error Handling**: **ALWAYS use `createError()` for ALL Cloudera Cloud Factory API errors** - provides clear, detailed error messages from the API. Use `ErrorResponse` only for custom validation errors
+- **Cloud Credential Types**: Treat AWS/GCP/Azure as public clouds; OpenStack/Proxmox/Zadara/vSphere as private clouds; OpenShift/Generic K8s as Kubernetes clusters.
 - **AWS LoadBalancer**: When creating LoadBalancer Services on AWS, set `service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance` to avoid ENI resolution issues with pod IP targets.
 - **Project Changes**: If you add servers to an already deployed project, you must run `commit-project` again to apply the changes.
 - **Sizing**: Minimal clusters (2 CPU / 2 GB RAM for bastion, master, and worker) should only be used for deployment tests and basic `kubectl` operations. For minimal workload clusters, use 2 CPU / 2 GB for bastion, 4 CPU / 4 GB for master, and 4 CPU / 8 GB for worker. Add workers or enable autoscaling based on workload.
+- **Virtual Clusters**: Agents can create virtual clusters within projects to isolate workloads while saving resources; ideal for testing and fast iteration.
 
 ## Project Structure
 
