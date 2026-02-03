@@ -37,6 +37,8 @@ type SuccessResponse struct {
 	Success bool   `json:"success"`
 }
 
+type RefreshTaikunClientArgs struct{}
+
 type ProjectSummary struct {
 	ID                     int32   `json:"id"`
 	Name                   string  `json:"name"`
@@ -379,6 +381,15 @@ func createTaikunClient() *taikungoclient.Client {
 	return nil
 }
 
+func refreshTaikunClient() *mcp_golang.ToolResponse {
+	taikunClient = createTaikunClient()
+	successResp := SuccessResponse{
+		Message: "Taikun client refreshed successfully",
+		Success: true,
+	}
+	return createJSONResponse(successResp)
+}
+
 func main() {
 	// Handle version command
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
@@ -403,7 +414,15 @@ func main() {
 
 	// --- MCP Tool Registrations ---
 
-	err := server.RegisterTool("create-virtual-cluster", "Create a new virtual cluster (a project in Taikun) with optional wait for completion", func(args CreateVirtualClusterArgs) (*mcp_golang.ToolResponse, error) {
+	err := server.RegisterTool("refresh-taikun-client", "Refresh the Taikun API client using current environment credentials", func(args RefreshTaikunClientArgs) (*mcp_golang.ToolResponse, error) {
+		return refreshTaikunClient(), nil
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register refresh-taikun-client tool: %v", err)
+	}
+	logger.Println("Registered refresh-taikun-client tool")
+
+	err = server.RegisterTool("create-virtual-cluster", "Create a new virtual cluster (a project in Taikun) with optional wait for completion", func(args CreateVirtualClusterArgs) (*mcp_golang.ToolResponse, error) {
 		return createVirtualCluster(taikunClient, args)
 	})
 	if err != nil {

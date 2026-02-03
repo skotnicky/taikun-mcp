@@ -110,6 +110,10 @@ func TestArgumentStructs(t *testing.T) {
 		data interface{}
 	}{
 		{
+			name: "RefreshTaikunClientArgs",
+			data: RefreshTaikunClientArgs{},
+		},
+		{
 			name: "CreateVirtualClusterArgs",
 			data: CreateVirtualClusterArgs{
 				ProjectID:       123,
