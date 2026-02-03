@@ -4,6 +4,8 @@
 
 This project provides an MCP (Model Context Protocol) server for Cloudera Cloud Factory (formerly Taikun), enabling AI assistants to interact with the platform's infrastructure management capabilities through structured tools.
 
+**Agent hint:** Taikun has been renamed to Cloudera Cloud Factory. Prefer the new name in user-facing text, while keeping legacy identifiers (like `taikungoclient`, `TAIKUN_*`, and `taikun-mcp`) when required for compatibility.
+
 ## Resources
 
 ### Official Cloudera Cloud Factory (Taikun) Resources

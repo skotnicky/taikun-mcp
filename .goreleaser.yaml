@@ -10,8 +10,8 @@ before:
     - go generate ./...
 
 builds:
-  - id: "taikun-mcp"
-    binary: "taikun-mcp"
+  - id: "cloudera-cloud-factory-mcp"
+    binary: "cloudera-cloud-factory-mcp"
     env:
       - CGO_ENABLED=0
     goos:
@@ -33,9 +33,9 @@ builds:
       - -X main.builtBy=goreleaser
 
 archives:
-  - id: "taikun-mcp"
+  - id: "cloudera-cloud-factory-mcp"
     builds:
-      - "taikun-mcp"
+      - "cloudera-cloud-factory-mcp"
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -112,19 +112,19 @@ release:
     #### Using curl (Linux/macOS):
     ```bash
     # Linux x86_64
-    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Linux_x86_64.tar.gz | tar xz
+    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/cloudera-cloud-factory-mcp_Linux_x86_64.tar.gz | tar xz
     
     # macOS x86_64
-    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Darwin_x86_64.tar.gz | tar xz
+    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/cloudera-cloud-factory-mcp_Darwin_x86_64.tar.gz | tar xz
     
     # macOS ARM64 (Apple Silicon)
-    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Darwin_arm64.tar.gz | tar xz
+    curl -L https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/cloudera-cloud-factory-mcp_Darwin_arm64.tar.gz | tar xz
     ```
     
     #### Using PowerShell (Windows):
     ```powershell
-    Invoke-WebRequest -Uri "https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/taikun-mcp_Windows_x86_64.zip" -OutFile "taikun-mcp.zip"
-    Expand-Archive -Path "taikun-mcp.zip" -DestinationPath .
+    Invoke-WebRequest -Uri "https://github.com/itera-io/taikun-mcp/releases/download/v{{ .Version }}/cloudera-cloud-factory-mcp_Windows_x86_64.zip" -OutFile "cloudera-cloud-factory-mcp.zip"
+    Expand-Archive -Path "cloudera-cloud-factory-mcp.zip" -DestinationPath .
     ```
     
     ### What's Changed
@@ -151,7 +151,7 @@ release:
 #     description: "MCP server for Cloudera Cloud Factory Platform"
 #     license: "MIT"
 #     test: |
-#       system "#{bin}/taikun-mcp", "--version"
+#       system "#{bin}/cloudera-cloud-factory-mcp", "--version"
 
 # Docker images (optional)
 # dockers:

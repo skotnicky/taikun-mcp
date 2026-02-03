@@ -39,9 +39,9 @@ echo "✅ Go module found"
 
 # Check if main.go can build
 echo "🔨 Testing build..."
-if go build -o /tmp/taikun-mcp-test .; then
+if go build -o /tmp/cloudera-cloud-factory-mcp-test .; then
     echo "✅ Project builds successfully"
-    rm -f /tmp/taikun-mcp-test
+    rm -f /tmp/cloudera-cloud-factory-mcp-test
 else
     echo "❌ Error: Project failed to build"
     exit 1
@@ -49,7 +49,7 @@ fi
 
 # Test version command
 echo "🔖 Testing version command..."
-if ./taikun-mcp --version > /dev/null 2>&1; then
+if ./cloudera-cloud-factory-mcp --version > /dev/null 2>&1; then
     echo "✅ Version command works"
 else
     echo "❌ Error: Version command failed"

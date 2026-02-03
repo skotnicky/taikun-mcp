@@ -87,8 +87,8 @@ go list -m all | grep -v "$(go list -m)" | head -10
 # Test if the project still builds
 echo ""
 print_status "Testing if project builds with updated dependencies..."
-if go build -o /tmp/taikun-mcp-test ./...; then
-    rm -f /tmp/taikun-mcp-test
+if go build -o /tmp/cloudera-cloud-factory-mcp-test ./...; then
+    rm -f /tmp/cloudera-cloud-factory-mcp-test
     print_success "Project builds successfully with updated dependencies"
 else
     print_error "Project failed to build with updated dependencies"

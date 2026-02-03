@@ -2,7 +2,7 @@
 
 A Model Context Protocol (MCP) server that provides tools for managing Cloudera Cloud Factory resources (formerly Taikun), including projects, virtual clusters, catalogs, and applications.
 
-Note: The repository and binary name remain `taikun-mcp` for compatibility.
+Note: The repository name remains `taikun-mcp` for compatibility; the binary is now `cloudera-cloud-factory-mcp`.
 
 [![Release](https://img.shields.io/github/v/release/itera-io/taikun-mcp)](https://github.com/itera-io/taikun-mcp/releases)
 [![CI](https://github.com/itera-io/taikun-mcp/workflows/CI/badge.svg)](https://github.com/itera-io/taikun-mcp/actions/workflows/ci.yml)
@@ -16,27 +16,27 @@ Download the latest release for your platform from the [releases page](https://g
 
 #### Linux (x86_64)
 ```bash
-curl -L https://github.com/itera-io/taikun-mcp/releases/latest/download/taikun-mcp_Linux_x86_64.tar.gz | tar xz
-sudo mv taikun-mcp /usr/local/bin/
+curl -L https://github.com/itera-io/taikun-mcp/releases/latest/download/cloudera-cloud-factory-mcp_Linux_x86_64.tar.gz | tar xz
+sudo mv cloudera-cloud-factory-mcp /usr/local/bin/
 ```
 
 #### macOS (Intel)
 ```bash
-curl -L https://github.com/itera-io/taikun-mcp/releases/latest/download/taikun-mcp_Darwin_x86_64.tar.gz | tar xz
-sudo mv taikun-mcp /usr/local/bin/
+curl -L https://github.com/itera-io/taikun-mcp/releases/latest/download/cloudera-cloud-factory-mcp_Darwin_x86_64.tar.gz | tar xz
+sudo mv cloudera-cloud-factory-mcp /usr/local/bin/
 ```
 
 #### macOS (Apple Silicon)
 ```bash
-curl -L https://github.com/itera-io/taikun-mcp/releases/latest/download/taikun-mcp_Darwin_arm64.tar.gz | tar xz
-sudo mv taikun-mcp /usr/local/bin/
+curl -L https://github.com/itera-io/taikun-mcp/releases/latest/download/cloudera-cloud-factory-mcp_Darwin_arm64.tar.gz | tar xz
+sudo mv cloudera-cloud-factory-mcp /usr/local/bin/
 ```
 
 #### Windows (PowerShell)
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/itera-io/taikun-mcp/releases/latest/download/taikun-mcp_Windows_x86_64.zip" -OutFile "taikun-mcp.zip"
-Expand-Archive -Path "taikun-mcp.zip" -DestinationPath .
-# Move taikun-mcp.exe to your PATH
+Invoke-WebRequest -Uri "https://github.com/itera-io/taikun-mcp/releases/latest/download/cloudera-cloud-factory-mcp_Windows_x86_64.zip" -OutFile "cloudera-cloud-factory-mcp.zip"
+Expand-Archive -Path "cloudera-cloud-factory-mcp.zip" -DestinationPath .
+# Move cloudera-cloud-factory-mcp.exe to your PATH
 ```
 
 ### Option 2: Build from Source
@@ -48,7 +48,7 @@ Expand-Archive -Path "taikun-mcp.zip" -DestinationPath .
 ```bash
 git clone https://github.com/itera-io/taikun-mcp
 cd taikun-mcp
-go build -o taikun-mcp
+go build -o cloudera-cloud-factory-mcp
 ```
 
 ### Option 3: Using Go Install
@@ -103,7 +103,7 @@ TAIKUN_API_HOST=api.taikun.cloud
 ### Starting the Server
 
 ```bash
-./taikun-mcp
+./cloudera-cloud-factory-mcp
 ```
 
 The server will start and listen for MCP requests via stdio transport.
@@ -117,7 +117,7 @@ Add this configuration to your Claude Desktop config using your preferred authen
 {
   "mcpServers": {
     "cloudera-cloud-factory": {
-      "command": "/path/to/taikun-mcp",
+      "command": "/path/to/cloudera-cloud-factory-mcp",
       "env": {
         "TAIKUN_ACCESS_KEY": "your-access-key",
         "TAIKUN_SECRET_KEY": "your-secret-key",
@@ -133,7 +133,7 @@ Add this configuration to your Claude Desktop config using your preferred authen
 {
   "mcpServers": {
     "cloudera-cloud-factory": {
-      "command": "/path/to/taikun-mcp",
+      "command": "/path/to/cloudera-cloud-factory-mcp",
       "env": {
         "TAIKUN_EMAIL": "your-email@example.com",
         "TAIKUN_PASSWORD": "your-password"

@@ -1,7 +1,7 @@
 # Cloudera Cloud Factory MCP Server Makefile
 
 # Variables
-BINARY_NAME=taikun-mcp
+BINARY_NAME=cloudera-cloud-factory-mcp
 BUILD_DIR=build
 SCRIPTS_DIR=scripts
 
