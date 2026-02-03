@@ -1,4 +1,4 @@
-# GoReleaser configuration for Taikun MCP Server
+# GoReleaser configuration for Cloudera Cloud Factory MCP Server
 # This configuration builds cross-platform binaries and creates GitHub releases
 
 version: 2
@@ -101,9 +101,9 @@ release:
   
   # Header and footer for the release notes
   header: |
-    ## Taikun MCP Server v{{ .Version }}
+    ## Cloudera Cloud Factory MCP Server v{{ .Version }}
     
-    This release provides MCP (Model Context Protocol) tools for managing Taikun Cloud resources.
+    This release provides MCP (Model Context Protocol) tools for managing Cloudera Cloud Factory resources.
     
     ### Installation
     
@@ -148,7 +148,7 @@ release:
 #       name: homebrew-tap
 #     folder: Formula
 #     homepage: "https://github.com/itera-io/taikun-mcp"
-#     description: "MCP server for Taikun Cloud Platform"
+#     description: "MCP server for Cloudera Cloud Factory Platform"
 #     license: "MIT"
 #     test: |
 #       system "#{bin}/taikun-mcp", "--version"

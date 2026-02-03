@@ -644,12 +644,12 @@ func fetchKubernetesListPage[T any](ctx context.Context, client *taikungoclient.
 	var result cursorPaginatedResponse[T]
 
 	if client == nil || client.Client == nil {
-		return result, nil, fmt.Errorf("taikun client is not initialized")
+		return result, nil, fmt.Errorf("Cloudera Cloud Factory client is not initialized")
 	}
 
 	cfg := client.Client.GetConfig()
 	if cfg == nil || cfg.HTTPClient == nil {
-		return result, nil, fmt.Errorf("taikun client config is not available")
+		return result, nil, fmt.Errorf("Cloudera Cloud Factory client config is not available")
 	}
 
 	baseURL := fmt.Sprintf("%s://%s", cfg.Scheme, cfg.Host)
@@ -899,7 +899,7 @@ func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesR
 		result = summaries
 	case "CronJobs":
 		return createJSONResponse(ErrorResponse{
-			Error: "CronJobs listing is not available through the Taikun Kubernetes list API",
+			Error: "CronJobs listing is not available through the Cloudera Cloud Factory Kubernetes list API",
 		}), nil
 	case "DaemonSets":
 		daemonSets, response, err := fetchKubernetesListItems[daemonSetListItem](ctx, client, args.ProjectID, "daemonset", args.Limit, args.Offset, args.SearchTerm)
@@ -921,7 +921,7 @@ func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesR
 		result = summaries
 	case "Jobs":
 		return createJSONResponse(ErrorResponse{
-			Error: "Jobs listing is not available through the Taikun Kubernetes list API",
+			Error: "Jobs listing is not available through the Cloudera Cloud Factory Kubernetes list API",
 		}), nil
 	case "Nodes":
 		nodes, response, err := fetchKubernetesListItems[nodeListItem](ctx, client, args.ProjectID, "nodes", args.Limit, args.Offset, args.SearchTerm)
@@ -963,7 +963,7 @@ func listKubernetesResources(client *taikungoclient.Client, args ListKubernetesR
 		result = summaries
 	case "StorageClasses":
 		return createJSONResponse(ErrorResponse{
-			Error: "StorageClasses listing is not available through the Taikun Kubernetes list API",
+			Error: "StorageClasses listing is not available through the Cloudera Cloud Factory Kubernetes list API",
 		}), nil
 	case "Sts":
 		statefulSets, response, err := fetchKubernetesListItems[statefulSetListItem](ctx, client, args.ProjectID, "sts", args.Limit, args.Offset, args.SearchTerm)

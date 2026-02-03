@@ -1,6 +1,8 @@
-# Taikun MCP Server
+# Cloudera Cloud Factory MCP Server
 
-A Model Context Protocol (MCP) server that provides tools for managing Taikun Cloud resources including projects, virtual clusters, catalogs, and applications.
+A Model Context Protocol (MCP) server that provides tools for managing Cloudera Cloud Factory resources (formerly Taikun), including projects, virtual clusters, catalogs, and applications.
+
+Note: The repository and binary name remain `taikun-mcp` for compatibility.
 
 [![Release](https://img.shields.io/github/v/release/itera-io/taikun-mcp)](https://github.com/itera-io/taikun-mcp/releases)
 [![CI](https://github.com/itera-io/taikun-mcp/workflows/CI/badge.svg)](https://github.com/itera-io/taikun-mcp/actions/workflows/ci.yml)
@@ -41,7 +43,7 @@ Expand-Archive -Path "taikun-mcp.zip" -DestinationPath .
 
 #### Prerequisites
 - Go 1.24 or later
-- Taikun Cloud account with API access
+- Cloudera Cloud Factory account with API access
 
 ```bash
 git clone https://github.com/itera-io/taikun-mcp
@@ -57,7 +59,7 @@ go install github.com/itera-io/taikun-mcp@latest
 
 ## Configuration
 
-The server supports multiple authentication methods with Taikun API. Choose one of the following options:
+The server supports multiple authentication methods with the Cloudera Cloud Factory API. Choose one of the following options (legacy `TAIKUN_*` environment variables are kept for compatibility):
 
 ### Option 1: Access Key/Secret Key Authentication (Recommended)
 
@@ -114,7 +116,7 @@ Add this configuration to your Claude Desktop config using your preferred authen
 ```json
 {
   "mcpServers": {
-    "taikun": {
+    "cloudera-cloud-factory": {
       "command": "/path/to/taikun-mcp",
       "env": {
         "TAIKUN_ACCESS_KEY": "your-access-key",
@@ -130,7 +132,7 @@ Add this configuration to your Claude Desktop config using your preferred authen
 ```json
 {
   "mcpServers": {
-    "taikun": {
+    "cloudera-cloud-factory": {
       "command": "/path/to/taikun-mcp",
       "env": {
         "TAIKUN_EMAIL": "your-email@example.com",
@@ -145,5 +147,5 @@ Add this configuration to your Claude Desktop config using your preferred authen
 
 For issues and questions:
 - Create an issue in this repository
-- Check the [Taikun documentation](https://docs.taikun.cloud/)
+- Check the [Cloudera Cloud Factory documentation](https://docs.taikun.cloud/)
 - Review the [MCP specification](https://modelcontextprotocol.io/)

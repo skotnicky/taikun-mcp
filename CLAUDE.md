@@ -1,27 +1,27 @@
-# Taikun MCP Server Development Guidelines
+# Cloudera Cloud Factory MCP Server Development Guidelines
 
 ## Project Overview
 
-This project provides an MCP (Model Context Protocol) server for Taikun Cloud Platform, enabling AI assistants to interact with Taikun's infrastructure management capabilities through structured tools.
+This project provides an MCP (Model Context Protocol) server for Cloudera Cloud Factory (formerly Taikun), enabling AI assistants to interact with the platform's infrastructure management capabilities through structured tools.
 
 ## Resources
 
-### Official Taikun Resources
-- **Taikun API Documentation**: https://api.taikun.cloud/swagger/
-- **Taikun Showback API**: https://api.taikun.cloud/showback/swagger/
-- **Taikun Platform**: https://docs.taikun.cloud/
+### Official Cloudera Cloud Factory (Taikun) Resources
+- **Cloudera Cloud Factory API Documentation**: https://api.taikun.cloud/swagger/
+- **Cloudera Cloud Factory Showback API**: https://api.taikun.cloud/showback/swagger/
+- **Cloudera Cloud Factory Documentation**: https://docs.taikun.cloud/
 
 ### Go Client Library
-- **Taikun Go Client**: https://github.com/itera-io/taikungoclient
+- **Taikun Go Client (legacy name)**: https://github.com/itera-io/taikungoclient
   - Auto-generated nightly from OpenAPI specs
   - Used by this project for all API interactions
   - Contains all API models and client methods
   - Example usage: `client.Client.CatalogAPI.CatalogList(ctx)`
 
 ### Terraform Provider (Reference Implementation)
-- **Terraform Provider Taikun**: https://github.com/itera-io/terraform-provider-taikun
+- **Terraform Provider Taikun (legacy name)**: https://github.com/itera-io/terraform-provider-taikun
   - Excellent reference for API usage patterns
-  - Shows how to handle Taikun API responses
+  - Shows how to handle Cloudera Cloud Factory API responses
   - Resource implementations demonstrate proper field handling
   - Error handling patterns to follow
 
@@ -34,7 +34,7 @@ This project provides an MCP (Model Context Protocol) server for Taikun Cloud Pl
 ### Development Tools
 - **Go Documentation**: Use `go doc github.com/itera-io/taikungoclient/client` to explore API types
 - **API Inspection**: Create temporary Go files to inspect struct fields when needed
-- **Taikun CLI**: May provide additional usage examples
+- **Taikun CLI (legacy name)**: May provide additional usage examples
 
 ### Common API Patterns to Reference
 
@@ -52,7 +52,7 @@ This project provides an MCP (Model Context Protocol) server for Taikun Cloud Pl
 
 #### Authentication
 - **Client Creation**: `taikungoclient.NewClientFromCredentials(username, password, "", "", "", apiHost)`
-- **Environment Variables**: `TAIKUN_EMAIL`, `TAIKUN_PASSWORD`, `TAIKUN_API_HOST`
+- **Environment Variables (legacy names)**: `TAIKUN_EMAIL`, `TAIKUN_PASSWORD`, `TAIKUN_API_HOST`
 
 ### Troubleshooting Resources
 
@@ -67,7 +67,7 @@ When unsure about API response fields:
 - **Nullable Fields**: Always check `.IsSet()` and `.Get() != nil` for `NullableString` types
 - **Pointer Fields**: Check for `!= nil` before dereferencing
 - **Pagination**: Most list APIs support `limit`, `offset`, and `search` parameters
-- **Error Handling**: **ALWAYS use `createError()` for ALL Taikun API errors** - provides clear, detailed error messages from the API. Use `ErrorResponse` only for custom validation errors
+- **Error Handling**: **ALWAYS use `createError()` for ALL Cloudera Cloud Factory API errors** - provides clear, detailed error messages from the API. Use `ErrorResponse` only for custom validation errors
 - **AWS LoadBalancer**: When creating LoadBalancer Services on AWS, set `service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance` to avoid ENI resolution issues with pod IP targets.
 - **Project Changes**: If you add servers to an already deployed project, you must run `commit-project` again to apply the changes.
 - **Sizing**: Minimal clusters (2 CPU / 2 GB RAM for bastion, master, and worker) should only be used for deployment tests and basic `kubectl` operations. For minimal workload clusters, use 2 CPU / 2 GB for bastion, 4 CPU / 4 GB for master, and 4 CPU / 8 GB for worker. Add workers or enable autoscaling based on workload.
@@ -141,8 +141,8 @@ return mcp_golang.NewToolResponse(
 ```
 
 #### Error Handling
-- **ALWAYS use `createError()` for ALL Taikun API errors** - this uses `taikungoclient.CreateError()` internally
-- The `createError()` function provides clear, detailed error messages from the Taikun API
+- **ALWAYS use `createError()` for ALL Cloudera Cloud Factory API errors** - this uses `taikungoclient.CreateError()` internally
+- The `createError()` function provides clear, detailed error messages from the Cloudera Cloud Factory API
 - For custom validation errors (non-API), use `ErrorResponse` struct:
 ```go
 // ✅ CORRECT - For API errors
@@ -158,7 +158,7 @@ return createJSONResponse(errorResp), nil
 ```
 
 **Why use `createError()`?**
-- Provides detailed Taikun API error messages
+- Provides detailed Cloudera Cloud Factory API error messages
 - Handles HTTP response codes properly
 - Extracts meaningful error details from API responses
 - Maintains consistent error formatting across all tools
@@ -184,9 +184,9 @@ func createError(response *http.Response, err error) *mcp_golang.ToolResponse {
 
 **Example of Clear Error Messages:**
 - **Without `createError()`**: `"HTTP error 404"` (unclear)
-- **With `createError()`**: `"Taikun Error: wordpress not found (HTTP 404)"` (clear and actionable)
+- **With `createError()`**: `"Cloudera Cloud Factory Error: wordpress not found (HTTP 404)"` (clear and actionable)
 
-This is why we **ALWAYS** use `createError()` for Taikun API errors!
+This is why we **ALWAYS** use `createError()` for Cloudera Cloud Factory API errors!
 
 ### Code Organization
 
@@ -225,7 +225,7 @@ When adding new tools, update `basic_test.go`:
 ### API Client Usage
 
 #### Nullable Fields
-Handle Taikun API nullable fields properly:
+Handle Cloudera Cloud Factory API nullable fields properly:
 ```go
 // For NullableString
 if field.IsSet() && field.Get() != nil {
@@ -293,7 +293,7 @@ type ToolArgs struct {
 
 Before submitting any new tool:
 - [ ] All responses use `createJSONResponse()`
-- [ ] **ALL Taikun API errors use `createError()` helper** (provides clear error messages)
+- [ ] **ALL Cloudera Cloud Factory API errors use `createError()` helper** (provides clear error messages)
 - [ ] Custom validation errors use `ErrorResponse` struct
 - [ ] Struct types defined with proper JSON tags
 - [ ] Added to `basic_test.go`

@@ -1,4 +1,4 @@
-# Taikun MCP Server Makefile
+# Cloudera Cloud Factory MCP Server Makefile
 
 # Variables
 BINARY_NAME=taikun-mcp

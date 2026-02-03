@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Taikun MCP Server - Dependency Update Script
+# Cloudera Cloud Factory MCP Server - Dependency Update Script
 # This script updates all Go dependencies to their latest versions
 
 set -euo pipefail

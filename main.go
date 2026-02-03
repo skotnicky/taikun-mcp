@@ -384,7 +384,7 @@ func createTaikunClient() *taikungoclient.Client {
 func refreshTaikunClient() *mcp_golang.ToolResponse {
 	taikunClient = createTaikunClient()
 	successResp := SuccessResponse{
-		Message: "Taikun client refreshed successfully",
+		Message: "Cloudera Cloud Factory client refreshed successfully",
 		Success: true,
 	}
 	return createJSONResponse(successResp)
@@ -393,7 +393,7 @@ func refreshTaikunClient() *mcp_golang.ToolResponse {
 func main() {
 	// Handle version command
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		fmt.Printf("Taikun MCP Server %s\n", version)
+		fmt.Printf("Cloudera Cloud Factory MCP Server %s\n", version)
 		fmt.Printf("  commit: %s\n", commit)
 		fmt.Printf("  built: %s\n", date)
 		fmt.Printf("  by: %s\n", builtBy)
@@ -401,20 +401,20 @@ func main() {
 	}
 
 	initLogger()
-	logger.Printf("Starting Taikun MCP server v%s", version)
+	logger.Printf("Starting Cloudera Cloud Factory MCP server v%s", version)
 
 	server := mcp_golang.NewServer(stdio.NewStdioServerTransport())
 	logger.Println("MCP server created")
 
-	// Initialize the Taikun client once
+	// Initialize the Cloudera Cloud Factory client once
 	taikunClient = createTaikunClient()
-	logger.Println("Taikun client initialized")
+	logger.Println("Cloudera Cloud Factory client initialized")
 
 	logger.Println("Starting tool registration...")
 
 	// --- MCP Tool Registrations ---
 
-	err := server.RegisterTool("refresh-taikun-client", "Refresh the Taikun API client using current environment credentials", func(args RefreshTaikunClientArgs) (*mcp_golang.ToolResponse, error) {
+	err := server.RegisterTool("refresh-taikun-client", "Refresh the Cloudera Cloud Factory API client using current environment credentials", func(args RefreshTaikunClientArgs) (*mcp_golang.ToolResponse, error) {
 		return refreshTaikunClient(), nil
 	})
 	if err != nil {
@@ -422,7 +422,7 @@ func main() {
 	}
 	logger.Println("Registered refresh-taikun-client tool")
 
-	err = server.RegisterTool("create-virtual-cluster", "Create a new virtual cluster (a project in Taikun) with optional wait for completion", func(args CreateVirtualClusterArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("create-virtual-cluster", "Create a new virtual cluster (a project in Cloudera Cloud Factory) with optional wait for completion", func(args CreateVirtualClusterArgs) (*mcp_golang.ToolResponse, error) {
 		return createVirtualCluster(taikunClient, args)
 	})
 	if err != nil {
@@ -430,7 +430,7 @@ func main() {
 	}
 	logger.Println("Registered create-virtual-cluster tool")
 
-	err = server.RegisterTool("delete-virtual-cluster", "Delete a virtual cluster (a project in Taikun)", func(args DeleteVirtualClusterArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("delete-virtual-cluster", "Delete a virtual cluster (a project in Cloudera Cloud Factory)", func(args DeleteVirtualClusterArgs) (*mcp_golang.ToolResponse, error) {
 		return deleteVirtualCluster(taikunClient, args)
 	})
 	if err != nil {
@@ -438,7 +438,7 @@ func main() {
 	}
 	logger.Println("Registered delete-virtual-cluster tool")
 
-	err = server.RegisterTool("list-virtual-clusters", "List virtual clusters in a parent project (projects in Taikun)", func(args ListVirtualClustersArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("list-virtual-clusters", "List virtual clusters in a parent project (projects in Cloudera Cloud Factory)", func(args ListVirtualClustersArgs) (*mcp_golang.ToolResponse, error) {
 		return listVirtualClusters(taikunClient, args)
 	})
 	if err != nil {
@@ -590,7 +590,7 @@ func main() {
 	}
 	logger.Println("Registered list-projects tool")
 
-	err = server.RegisterTool("create-project", "Create a new Kubernetes project in Taikun", func(args CreateProjectArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("create-project", "Create a new Kubernetes project in Cloudera Cloud Factory", func(args CreateProjectArgs) (*mcp_golang.ToolResponse, error) {
 		return createProject(taikunClient, args)
 	})
 	if err != nil {
@@ -598,7 +598,7 @@ func main() {
 	}
 	logger.Println("Registered create-project tool")
 
-	err = server.RegisterTool("delete-project", "Delete a project in Taikun", func(args DeleteProjectArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("delete-project", "Delete a project in Cloudera Cloud Factory", func(args DeleteProjectArgs) (*mcp_golang.ToolResponse, error) {
 		return deleteProject(taikunClient, args)
 	})
 	if err != nil {

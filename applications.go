@@ -24,7 +24,7 @@ type InstallAppArgs struct {
 	CatalogAppID      int32          `json:"catalogAppId" jsonschema:"required,description=The catalog application ID to install"`
 	ExtraValues       string         `json:"extraValues,omitempty" jsonschema:"description=Base64-encoded YAML extra values for the application (optional)"`
 	AutoSync          bool           `json:"autoSync,omitempty" jsonschema:"description=Enable automatic synchronization (default: false)"`
-	TaikunLinkEnabled bool           `json:"taikunLinkEnabled,omitempty" jsonschema:"description=Enable Taikun link integration (default: false)"`
+	TaikunLinkEnabled bool           `json:"taikunLinkEnabled,omitempty" jsonschema:"description=Enable Cloudera Cloud Factory (Taikun) link integration (default: false)"`
 	Timeout           int32          `json:"timeout,omitempty" jsonschema:"description=Installation timeout in seconds (optional)"`
 	Parameters        []AppParameter `json:"parameters,omitempty" jsonschema:"description=Application parameters as key-value pairs (optional)"`
 	WaitForReady      bool           `json:"waitForReady,omitempty" jsonschema:"description=Wait for application to be ready before returning (default: false)"`
