@@ -43,7 +43,7 @@ jobs:
           args: --timeout=5m
       
       - name: Build
-        run: go build -v ./...
+        run: go build -v -o cloudera-cloud-factory-mcp .
       
       - name: Test
         run: go test -v ./...
