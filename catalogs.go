@@ -299,6 +299,45 @@ func addAppToCatalog(client *taikungoclient.Client, args AddAppToCatalogArgs) (*
 	return createJSONResponse(successResp), nil
 }
 
+func addAppToCatalogWithParameters(client *taikungoclient.Client, args AddAppToCatalogWithParametersArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+
+	createCmd := taikuncore.NewCreateCatalogAppCommand()
+	createCmd.SetCatalogId(args.CatalogID)
+	createCmd.SetRepoName(args.Repository)
+	createCmd.SetPackageName(args.PackageName)
+
+	if len(args.Parameters) > 0 {
+		params := make([]taikuncore.CatalogAppParamsDto, 0, len(args.Parameters))
+		for _, param := range args.Parameters {
+			p := taikuncore.NewCatalogAppParamsDto()
+			p.SetKey(param.Key)
+			p.SetValue(param.Value)
+			params = append(params, *p)
+		}
+		createCmd.SetParameters(params)
+	}
+
+	_, response, err := client.Client.CatalogAppAPI.CatalogAppCreate(ctx).
+		CreateCatalogAppCommand(*createCmd).
+		Execute()
+
+	if err != nil {
+		return createError(response, err), nil
+	}
+
+	if errorResp := checkResponse(response, "add application to catalog with parameters"); errorResp != nil {
+		return errorResp, nil
+	}
+
+	successResp := SuccessResponse{
+		Message: fmt.Sprintf("Application '%s' from repository '%s' added to catalog ID %d with %d parameter overrides", args.PackageName, args.Repository, args.CatalogID, len(args.Parameters)),
+		Success: true,
+	}
+
+	return createJSONResponse(successResp), nil
+}
+
 func removeAppFromCatalog(client *taikungoclient.Client, args RemoveAppFromCatalogArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
@@ -459,6 +498,90 @@ func listCatalogApps(client *taikungoclient.Client, args ListCatalogAppsArgs) (*
 		Applications: applications,
 		Total:        len(applications),
 		CatalogID:    args.CatalogID,
+		Message:      message,
+	}
+
+	return createJSONResponse(listResp), nil
+}
+
+func getCatalogAppParameters(client *taikungoclient.Client, args GetCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+
+	req := client.Client.CatalogAppAPI.CatalogAppParamDetails(ctx, args.CatalogAppID)
+	if args.IsTaikunLink != nil {
+		req = req.IsTaikunLink(*args.IsTaikunLink)
+	}
+
+	params, response, err := req.Execute()
+	if err != nil {
+		return createError(response, err), nil
+	}
+
+	if errorResp := checkResponse(response, "get catalog app parameters"); errorResp != nil {
+		return errorResp, nil
+	}
+
+	type CatalogAppParameterDetail struct {
+		ID                          int32  `json:"id,omitempty"`
+		CatalogAppName              string `json:"catalogAppName,omitempty"`
+		Key                         string `json:"key,omitempty"`
+		Value                       string `json:"value,omitempty"`
+		IsEditableWhenInstalling    *bool  `json:"isEditableWhenInstalling,omitempty"`
+		IsEditableAfterInstallation *bool  `json:"isEditableAfterInstallation,omitempty"`
+		IsMandatory                 *bool  `json:"isMandatory,omitempty"`
+		HasJsonSchema               *bool  `json:"hasJsonSchema,omitempty"`
+		IsTaikunLink                *bool  `json:"isTaikunLink,omitempty"`
+	}
+
+	details := make([]CatalogAppParameterDetail, 0, len(params))
+	for _, param := range params {
+		detail := CatalogAppParameterDetail{}
+
+		if param.Id != nil {
+			detail.ID = *param.Id
+		}
+		if value, ok := param.GetCatalogAppNameOk(); ok && value != nil {
+			detail.CatalogAppName = *value
+		}
+		if value, ok := param.GetKeyOk(); ok && value != nil {
+			detail.Key = *value
+		}
+		if value, ok := param.GetValueOk(); ok && value != nil {
+			detail.Value = *value
+		}
+		if value, ok := param.GetIsEditableWhenInstallingOk(); ok {
+			detail.IsEditableWhenInstalling = value
+		}
+		if value, ok := param.GetIsEditableAfterInstallationOk(); ok {
+			detail.IsEditableAfterInstallation = value
+		}
+		if value, ok := param.GetIsMandatoryOk(); ok {
+			detail.IsMandatory = value
+		}
+		if value, ok := param.GetHasJsonSchemaOk(); ok {
+			detail.HasJsonSchema = value
+		}
+		if value, ok := param.GetIsTaikunLinkOk(); ok {
+			detail.IsTaikunLink = value
+		}
+
+		details = append(details, detail)
+	}
+
+	message := fmt.Sprintf("Found %d parameters for catalog app ID %d", len(details), args.CatalogAppID)
+	if len(details) == 0 {
+		message = fmt.Sprintf("No parameters found for catalog app ID %d", args.CatalogAppID)
+	}
+
+	listResp := struct {
+		CatalogAppID int32                      `json:"catalogAppId"`
+		Parameters   []CatalogAppParameterDetail `json:"parameters"`
+		Total        int                        `json:"total"`
+		Message      string                     `json:"message"`
+	}{
+		CatalogAppID: args.CatalogAppID,
+		Parameters:   details,
+		Total:        len(details),
 		Message:      message,
 	}
 

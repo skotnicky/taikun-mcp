@@ -125,6 +125,18 @@ type AddAppToCatalogArgs struct {
 	PackageName string `json:"packageName" jsonschema:"required,description=Package name (3-30 chars, lowercase/numeric)"`
 }
 
+type AddAppToCatalogWithParametersArgs struct {
+	CatalogID   int32          `json:"catalogId" jsonschema:"required,description=The catalog ID to add the application to"`
+	Repository  string         `json:"repository" jsonschema:"required,description=Repository name (3-30 chars, lowercase/numeric)"`
+	PackageName string         `json:"packageName" jsonschema:"required,description=Package name (3-30 chars, lowercase/numeric)"`
+	Parameters  []AppParameter `json:"parameters,omitempty" jsonschema:"description=Default application parameters to set in the catalog (optional)"`
+}
+
+type GetCatalogAppParametersArgs struct {
+	CatalogAppID int32 `json:"catalogAppId" jsonschema:"required,description=The catalog application ID to fetch parameters for"`
+	IsTaikunLink *bool `json:"isTaikunLink,omitempty" jsonschema:"description=Filter Taikun link parameters only (optional)"`
+}
+
 type ListRepositoriesArgs struct {
 	Limit  int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
 	Offset int32  `json:"offset,omitempty" jsonschema:"description=Number of results to skip (optional)"`
@@ -502,6 +514,14 @@ func main() {
 	}
 	logger.Println("Registered add-app-to-catalog tool")
 
+	err = server.RegisterTool("add-app-to-catalog-with-parameters", "Add an application to a catalog with default parameters", func(args AddAppToCatalogWithParametersArgs) (*mcp_golang.ToolResponse, error) {
+		return addAppToCatalogWithParameters(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register add-app-to-catalog-with-parameters tool: %v", err)
+	}
+	logger.Println("Registered add-app-to-catalog-with-parameters tool")
+
 	err = server.RegisterTool("remove-app-from-catalog", "Remove an application from a catalog", func(args RemoveAppFromCatalogArgs) (*mcp_golang.ToolResponse, error) {
 		return removeAppFromCatalog(taikunClient, args)
 	})
@@ -517,6 +537,14 @@ func main() {
 		logger.Fatalf("Failed to register list-catalog-apps tool: %v", err)
 	}
 	logger.Println("Registered list-catalog-apps tool")
+
+	err = server.RegisterTool("get-catalog-app-parameters", "Get available parameters for a catalog application", func(args GetCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+		return getCatalogAppParameters(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register get-catalog-app-parameters tool: %v", err)
+	}
+	logger.Println("Registered get-catalog-app-parameters tool")
 
 	err = server.RegisterTool("list-repositories", "List available repositories by discovering them from existing catalog applications", func(args ListRepositoriesArgs) (*mcp_golang.ToolResponse, error) {
 		return listRepositories(taikunClient, args)

@@ -140,6 +140,20 @@ func TestArgumentStructs(t *testing.T) {
 			},
 		},
 		{
+			name: "AddAppToCatalogWithParametersArgs",
+			data: AddAppToCatalogWithParametersArgs{
+				CatalogID:   123,
+				Repository:  "bitnami",
+				PackageName: "nginx",
+				Parameters: []AppParameter{
+					{
+						Key:   "replicaCount",
+						Value: "2",
+					},
+				},
+			},
+		},
+		{
 			name: "ListRepositoriesArgs",
 			data: ListRepositoriesArgs{
 				Limit:  10,
@@ -179,6 +193,12 @@ func TestArgumentStructs(t *testing.T) {
 				CatalogID: 123,
 				Limit:     10,
 				Search:    "nginx",
+			},
+		},
+		{
+			name: "GetCatalogAppParametersArgs",
+			data: GetCatalogAppParametersArgs{
+				CatalogAppID: 456,
 			},
 		},
 		{
