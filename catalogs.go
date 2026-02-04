@@ -588,6 +588,41 @@ func getCatalogAppParameters(client *taikungoclient.Client, args GetCatalogAppPa
 	return createJSONResponse(listResp), nil
 }
 
+func updateCatalogAppParameters(client *taikungoclient.Client, args UpdateCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+
+	updateCmd := taikuncore.NewEditCatalogAppParamCommand()
+	updateCmd.SetCatalogAppId(args.CatalogAppID)
+
+	params := make([]taikuncore.CatalogAppParamsDto, 0, len(args.Parameters))
+	for _, param := range args.Parameters {
+		p := taikuncore.NewCatalogAppParamsDto()
+		p.SetKey(param.Key)
+		p.SetValue(param.Value)
+		params = append(params, *p)
+	}
+	updateCmd.SetParameters(params)
+
+	response, err := client.Client.CatalogAppAPI.CatalogAppEditParams(ctx).
+		EditCatalogAppParamCommand(*updateCmd).
+		Execute()
+
+	if err != nil {
+		return createError(response, err), nil
+	}
+
+	if errorResp := checkResponse(response, "update catalog app parameters"); errorResp != nil {
+		return errorResp, nil
+	}
+
+	successResp := SuccessResponse{
+		Message: fmt.Sprintf("Catalog app ID %d parameters updated successfully", args.CatalogAppID),
+		Success: true,
+	}
+
+	return createJSONResponse(successResp), nil
+}
+
 func listRepositories(client *taikungoclient.Client, args ListRepositoriesArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 

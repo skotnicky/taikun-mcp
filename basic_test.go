@@ -202,6 +202,18 @@ func TestArgumentStructs(t *testing.T) {
 			},
 		},
 		{
+			name: "UpdateCatalogAppParametersArgs",
+			data: UpdateCatalogAppParametersArgs{
+				CatalogAppID: 456,
+				Parameters: []AppParameter{
+					{
+						Key:   "replicaCount",
+						Value: "3",
+					},
+				},
+			},
+		},
+		{
 			name: "RemoveAppFromCatalogArgs",
 			data: RemoveAppFromCatalogArgs{
 				CatalogID:   123,

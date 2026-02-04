@@ -137,6 +137,11 @@ type GetCatalogAppParametersArgs struct {
 	IsTaikunLink *bool `json:"isTaikunLink,omitempty" jsonschema:"description=Filter Taikun link parameters only (optional)"`
 }
 
+type UpdateCatalogAppParametersArgs struct {
+	CatalogAppID int32          `json:"catalogAppId" jsonschema:"required,description=The catalog application ID to update parameters for"`
+	Parameters   []AppParameter `json:"parameters" jsonschema:"required,description=Catalog app parameters to set as defaults"`
+}
+
 type ListRepositoriesArgs struct {
 	Limit  int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
 	Offset int32  `json:"offset,omitempty" jsonschema:"description=Number of results to skip (optional)"`
@@ -545,6 +550,14 @@ func main() {
 		logger.Fatalf("Failed to register get-catalog-app-parameters tool: %v", err)
 	}
 	logger.Println("Registered get-catalog-app-parameters tool")
+
+	err = server.RegisterTool("update-catalog-app-parameters", "Update default parameters for a catalog application", func(args UpdateCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+		return updateCatalogAppParameters(taikunClient, args)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to register update-catalog-app-parameters tool: %v", err)
+	}
+	logger.Println("Registered update-catalog-app-parameters tool")
 
 	err = server.RegisterTool("list-repositories", "List available repositories by discovering them from existing catalog applications", func(args ListRepositoriesArgs) (*mcp_golang.ToolResponse, error) {
 		return listRepositories(taikunClient, args)
