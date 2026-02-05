@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/itera-io/taikungoclient"
@@ -709,11 +710,45 @@ func updateCatalogAppParameters(client *taikungoclient.Client, args SetCatalogAp
 	updateCmd := taikuncore.NewEditCatalogAppParamCommand()
 	updateCmd.SetCatalogAppId(args.CatalogAppID)
 
-	params := make([]taikuncore.CatalogAppParamsDto, 0, len(args.Parameters))
+	mergeWithExisting := true
+	if args.MergeWithExisting != nil {
+		mergeWithExisting = *args.MergeWithExisting
+	}
+
+	paramMap := map[string]string{}
+	if mergeWithExisting {
+		existing, response, err := client.Client.CatalogAppAPI.CatalogAppParamDetails(ctx, args.CatalogAppID).Execute()
+		if err != nil {
+			return createError(response, err), nil
+		}
+		if errorResp := checkResponse(response, "get catalog app default parameters"); errorResp != nil {
+			return errorResp, nil
+		}
+
+		for _, param := range existing {
+			if key, ok := param.GetKeyOk(); ok && key != nil {
+				if value, ok := param.GetValueOk(); ok && value != nil {
+					paramMap[*key] = *value
+				}
+			}
+		}
+	}
+
 	for _, param := range args.Parameters {
+		paramMap[param.Key] = param.Value
+	}
+
+	keys := make([]string, 0, len(paramMap))
+	for key := range paramMap {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	params := make([]taikuncore.CatalogAppParamsDto, 0, len(keys))
+	for _, key := range keys {
 		p := taikuncore.NewCatalogAppParamsDto()
-		p.SetKey(param.Key)
-		p.SetValue(param.Value)
+		p.SetKey(key)
+		p.SetValue(paramMap[key])
 		params = append(params, *p)
 	}
 	updateCmd.SetParameters(params)

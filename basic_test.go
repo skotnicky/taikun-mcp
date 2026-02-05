@@ -222,6 +222,7 @@ func TestArgumentStructs(t *testing.T) {
 						Value: "3",
 					},
 				},
+				MergeWithExisting: func() *bool { v := true; return &v }(),
 			},
 		},
 		{

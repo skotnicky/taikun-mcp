@@ -147,8 +147,9 @@ type GetCatalogAppParamsArgs struct {
 }
 
 type SetCatalogAppDefaultParamsArgs struct {
-	CatalogAppID int32          `json:"catalogAppId" jsonschema:"required,description=The catalog application ID to update parameters for"`
-	Parameters   []AppParameter `json:"parameters" jsonschema:"required,description=Catalog app parameters to set as defaults"`
+	CatalogAppID      int32          `json:"catalogAppId" jsonschema:"required,description=The catalog application ID to update parameters for"`
+	Parameters        []AppParameter `json:"parameters" jsonschema:"required,description=Catalog app parameters to set as defaults"`
+	MergeWithExisting *bool          `json:"mergeWithExisting,omitempty" jsonschema:"description=Merge with existing defaults before updating (default: true)"`
 }
 
 type ListRepositoriesArgs struct {
@@ -528,7 +529,7 @@ func main() {
 	}
 	logger.Println("Registered catalog-app-params tool")
 
-	err = server.RegisterTool("catalog-app-defaults-set", "Update default parameters for a catalog application", func(args SetCatalogAppDefaultParamsArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-app-defaults-set", "Update default parameters for a catalog application (merges with existing defaults by default)", func(args SetCatalogAppDefaultParamsArgs) (*mcp_golang.ToolResponse, error) {
 		return updateCatalogAppParameters(taikunClient, args)
 	})
 	if err != nil {
