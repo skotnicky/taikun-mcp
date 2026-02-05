@@ -171,6 +171,15 @@ func TestArgumentStructs(t *testing.T) {
 			},
 		},
 		{
+			name: "ListAvailableAppsArgs",
+			data: ListAvailableAppsArgs{
+				Repository: "bitnami",
+				Limit:      20,
+				Offset:     5,
+				Search:     "web",
+			},
+		},
+		{
 			name: "CreateProjectArgs",
 			data: CreateProjectArgs{
 				Name:                "test-project",
@@ -196,14 +205,16 @@ func TestArgumentStructs(t *testing.T) {
 			},
 		},
 		{
-			name: "GetCatalogAppParametersArgs",
-			data: GetCatalogAppParametersArgs{
+			name: "GetCatalogAppParamsArgs",
+			data: GetCatalogAppParamsArgs{
 				CatalogAppID: 456,
+				PackageID:    "cf2baee0-d026-42a0-8a5b-20d432ae1f01",
+				Version:      "0.5.0",
 			},
 		},
 		{
-			name: "UpdateCatalogAppParametersArgs",
-			data: UpdateCatalogAppParametersArgs{
+			name: "SetCatalogAppDefaultParamsArgs",
+			data: SetCatalogAppDefaultParamsArgs{
 				CatalogAppID: 456,
 				Parameters: []AppParameter{
 					{

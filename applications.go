@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"time"
 
 	"github.com/itera-io/taikungoclient"
@@ -27,6 +28,7 @@ type InstallAppArgs struct {
 	TaikunLinkEnabled bool           `json:"taikunLinkEnabled,omitempty" jsonschema:"description=Enable Cloudera Cloud Factory (Taikun) link integration (default: false)"`
 	Timeout           int32          `json:"timeout,omitempty" jsonschema:"description=Installation timeout in seconds (optional)"`
 	Parameters        []AppParameter `json:"parameters,omitempty" jsonschema:"description=Application parameters as key-value pairs (optional)"`
+	UseCatalogDefaults *bool         `json:"useCatalogDefaults,omitempty" jsonschema:"description=Use catalog default parameters as a base (default: true)"`
 	WaitForReady      bool           `json:"waitForReady,omitempty" jsonschema:"description=Wait for application to be ready before returning (default: false)"`
 	WaitTimeout       int32          `json:"waitTimeout,omitempty" jsonschema:"description=Wait timeout in seconds (default: 600)"`
 }
@@ -159,12 +161,46 @@ func installApp(client *taikungoclient.Client, args InstallAppArgs) (*mcp_golang
 		createCmd.SetTimeout(args.Timeout)
 	}
 
-	if len(args.Parameters) > 0 {
-		var params []taikuncore.ProjectAppParamsDto
-		for _, param := range args.Parameters {
+	useCatalogDefaults := true
+	if args.UseCatalogDefaults != nil {
+		useCatalogDefaults = *args.UseCatalogDefaults
+	}
+
+	paramMap := map[string]string{}
+	if useCatalogDefaults {
+		defaults, response, err := client.Client.CatalogAppAPI.CatalogAppParamDetails(ctx, args.CatalogAppID).Execute()
+		if err != nil {
+			return createError(response, err), nil
+		}
+		if errorResp := checkResponse(response, "get catalog app default parameters"); errorResp != nil {
+			return errorResp, nil
+		}
+
+		for _, param := range defaults {
+			if key, ok := param.GetKeyOk(); ok && key != nil {
+				if value, ok := param.GetValueOk(); ok && value != nil {
+					paramMap[*key] = *value
+				}
+			}
+		}
+	}
+
+	for _, param := range args.Parameters {
+		paramMap[param.Key] = param.Value
+	}
+
+	if len(paramMap) > 0 {
+		keys := make([]string, 0, len(paramMap))
+		for key := range paramMap {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		params := make([]taikuncore.ProjectAppParamsDto, 0, len(keys))
+		for _, key := range keys {
 			p := taikuncore.NewProjectAppParamsDto()
-			p.SetKey(param.Key)
-			p.SetValue(param.Value)
+			p.SetKey(key)
+			p.SetValue(paramMap[key])
 			params = append(params, *p)
 		}
 		createCmd.SetParameters(params)
@@ -232,21 +268,40 @@ func installApp(client *taikungoclient.Client, args InstallAppArgs) (*mcp_golang
 	}
 
 	type InstallAppResponse struct {
-		Message      string `json:"message"`
-		Success      bool   `json:"success"`
-		ProjectAppID int32  `json:"projectAppId,omitempty"`
-		Name         string `json:"name"`
-		Namespace    string `json:"namespace"`
-		Status       string `json:"status"`
+		Message            string         `json:"message"`
+		Success            bool           `json:"success"`
+		ProjectAppID       int32          `json:"projectAppId,omitempty"`
+		Name               string         `json:"name"`
+		Namespace          string         `json:"namespace"`
+		Status             string         `json:"status"`
+		UseCatalogDefaults bool           `json:"useCatalogDefaults"`
+		ParametersApplied  []AppParameter `json:"parametersApplied,omitempty"`
+	}
+
+	var appliedParams []AppParameter
+	if len(paramMap) > 0 {
+		keys := make([]string, 0, len(paramMap))
+		for key := range paramMap {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			appliedParams = append(appliedParams, AppParameter{
+				Key:   key,
+				Value: paramMap[key],
+			})
+		}
 	}
 
 	responseData := InstallAppResponse{
-		Message:      resultMsg,
-		Success:      true,
-		ProjectAppID: projectAppID,
-		Name:         args.Name,
-		Namespace:    args.Namespace,
-		Status:       "initiated",
+		Message:            resultMsg,
+		Success:            true,
+		ProjectAppID:       projectAppID,
+		Name:               args.Name,
+		Namespace:          args.Namespace,
+		Status:             "initiated",
+		UseCatalogDefaults: useCatalogDefaults,
+		ParametersApplied:  appliedParams,
 	}
 
 	if args.WaitForReady {

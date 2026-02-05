@@ -132,12 +132,21 @@ type AddAppToCatalogWithParametersArgs struct {
 	Parameters  []AppParameter `json:"parameters,omitempty" jsonschema:"description=Default application parameters to set in the catalog (optional)"`
 }
 
-type GetCatalogAppParametersArgs struct {
-	CatalogAppID int32 `json:"catalogAppId" jsonschema:"required,description=The catalog application ID to fetch parameters for"`
-	IsTaikunLink *bool `json:"isTaikunLink,omitempty" jsonschema:"description=Filter Taikun link parameters only (optional)"`
+type ListAvailableAppsArgs struct {
+	Repository string `json:"repository,omitempty" jsonschema:"description=Repository name to filter packages (optional)"`
+	Limit      int32  `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return (optional)"`
+	Offset     int32  `json:"offset,omitempty" jsonschema:"description=Number of results to skip (optional)"`
+	Search     string `json:"search,omitempty" jsonschema:"description=Search term to filter results (optional)"`
 }
 
-type UpdateCatalogAppParametersArgs struct {
+type GetCatalogAppParamsArgs struct {
+	CatalogAppID int32  `json:"catalogAppId,omitempty" jsonschema:"description=The catalog application ID to fetch parameters for (optional if packageId+version provided)"`
+	PackageID    string `json:"packageId,omitempty" jsonschema:"description=Package ID to fetch parameters for (required with version if catalogAppId not provided)"`
+	Version      string `json:"version,omitempty" jsonschema:"description=Package version to fetch parameters for (required with packageId if catalogAppId not provided)"`
+	IsTaikunLink *bool  `json:"isTaikunLink,omitempty" jsonschema:"description=Filter Taikun link parameters only (optional)"`
+}
+
+type SetCatalogAppDefaultParamsArgs struct {
 	CatalogAppID int32          `json:"catalogAppId" jsonschema:"required,description=The catalog application ID to update parameters for"`
 	Parameters   []AppParameter `json:"parameters" jsonschema:"required,description=Catalog app parameters to set as defaults"`
 }
@@ -463,125 +472,77 @@ func main() {
 	}
 	logger.Println("Registered list-virtual-clusters tool")
 
-	err = server.RegisterTool("create-catalog", "Create a new catalog", func(args CreateCatalogArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-create", "Create a new catalog", func(args CreateCatalogArgs) (*mcp_golang.ToolResponse, error) {
 		return createCatalog(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register create-catalog tool: %v", err)
+		logger.Fatalf("Failed to register catalog-create tool: %v", err)
 	}
-	logger.Println("Registered create-catalog tool")
+	logger.Println("Registered catalog-create tool")
 
-	err = server.RegisterTool("list-catalogs", "List catalogs with optional filtering", func(args ListCatalogsArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-list", "List catalogs with optional filtering", func(args ListCatalogsArgs) (*mcp_golang.ToolResponse, error) {
 		return listCatalogs(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register list-catalogs tool: %v", err)
+		logger.Fatalf("Failed to register catalog-list tool: %v", err)
 	}
-	logger.Println("Registered list-catalogs tool")
+	logger.Println("Registered catalog-list tool")
 
-	err = server.RegisterTool("update-catalog", "Update catalog name and description", func(args UpdateCatalogArgs) (*mcp_golang.ToolResponse, error) {
-		return updateCatalog(taikunClient, args)
-	})
-	if err != nil {
-		logger.Fatalf("Failed to register update-catalog tool: %v", err)
-	}
-	logger.Println("Registered update-catalog tool")
-
-	err = server.RegisterTool("delete-catalog", "Delete a catalog", func(args DeleteCatalogArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-delete", "Delete a catalog", func(args DeleteCatalogArgs) (*mcp_golang.ToolResponse, error) {
 		return deleteCatalog(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register delete-catalog tool: %v", err)
+		logger.Fatalf("Failed to register catalog-delete tool: %v", err)
 	}
-	logger.Println("Registered delete-catalog tool")
+	logger.Println("Registered catalog-delete tool")
 
-	err = server.RegisterTool("bind-projects-to-catalog", "Bind projects to a catalog", func(args BindProjectsToCatalogArgs) (*mcp_golang.ToolResponse, error) {
-		return bindProjectsToCatalog(taikunClient, args)
+	err = server.RegisterTool("available-apps-list", "List available apps from the package repository", func(args ListAvailableAppsArgs) (*mcp_golang.ToolResponse, error) {
+		return listAvailableApps(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register bind-projects-to-catalog tool: %v", err)
+		logger.Fatalf("Failed to register available-apps-list tool: %v", err)
 	}
-	logger.Println("Registered bind-projects-to-catalog tool")
+	logger.Println("Registered available-apps-list tool")
 
-	err = server.RegisterTool("unbind-projects-from-catalog", "Unbind projects from a catalog", func(args UnbindProjectsFromCatalogArgs) (*mcp_golang.ToolResponse, error) {
-		return unbindProjectsFromCatalog(taikunClient, args)
-	})
-	if err != nil {
-		logger.Fatalf("Failed to register unbind-projects-from-catalog tool: %v", err)
-	}
-	logger.Println("Registered unbind-projects-from-catalog tool")
-
-	err = server.RegisterTool("add-app-to-catalog", "Add an application to a catalog", func(args AddAppToCatalogArgs) (*mcp_golang.ToolResponse, error) {
-		return addAppToCatalog(taikunClient, args)
-	})
-	if err != nil {
-		logger.Fatalf("Failed to register add-app-to-catalog tool: %v", err)
-	}
-	logger.Println("Registered add-app-to-catalog tool")
-
-	err = server.RegisterTool("add-app-to-catalog-with-parameters", "Add an application to a catalog with default parameters", func(args AddAppToCatalogWithParametersArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-app-add", "Add an application to a catalog with optional default parameters", func(args AddAppToCatalogWithParametersArgs) (*mcp_golang.ToolResponse, error) {
 		return addAppToCatalogWithParameters(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register add-app-to-catalog-with-parameters tool: %v", err)
+		logger.Fatalf("Failed to register catalog-app-add tool: %v", err)
 	}
-	logger.Println("Registered add-app-to-catalog-with-parameters tool")
+	logger.Println("Registered catalog-app-add tool")
 
-	err = server.RegisterTool("remove-app-from-catalog", "Remove an application from a catalog", func(args RemoveAppFromCatalogArgs) (*mcp_golang.ToolResponse, error) {
-		return removeAppFromCatalog(taikunClient, args)
-	})
-	if err != nil {
-		logger.Fatalf("Failed to register remove-app-from-catalog tool: %v", err)
-	}
-	logger.Println("Registered remove-app-from-catalog tool")
-
-	err = server.RegisterTool("list-catalog-apps", "List applications in a specific catalog or all catalogs", func(args ListCatalogAppsArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-apps-list", "List applications in a specific catalog or all catalogs", func(args ListCatalogAppsArgs) (*mcp_golang.ToolResponse, error) {
 		return listCatalogApps(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register list-catalog-apps tool: %v", err)
+		logger.Fatalf("Failed to register catalog-apps-list tool: %v", err)
 	}
-	logger.Println("Registered list-catalog-apps tool")
+	logger.Println("Registered catalog-apps-list tool")
 
-	err = server.RegisterTool("get-catalog-app-parameters", "Get available parameters for a catalog application", func(args GetCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-app-params", "Get available and added parameters for a catalog application", func(args GetCatalogAppParamsArgs) (*mcp_golang.ToolResponse, error) {
 		return getCatalogAppParameters(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register get-catalog-app-parameters tool: %v", err)
+		logger.Fatalf("Failed to register catalog-app-params tool: %v", err)
 	}
-	logger.Println("Registered get-catalog-app-parameters tool")
+	logger.Println("Registered catalog-app-params tool")
 
-	err = server.RegisterTool("update-catalog-app-parameters", "Update default parameters for a catalog application", func(args UpdateCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("catalog-app-defaults-set", "Update default parameters for a catalog application", func(args SetCatalogAppDefaultParamsArgs) (*mcp_golang.ToolResponse, error) {
 		return updateCatalogAppParameters(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register update-catalog-app-parameters tool: %v", err)
+		logger.Fatalf("Failed to register catalog-app-defaults-set tool: %v", err)
 	}
-	logger.Println("Registered update-catalog-app-parameters tool")
+	logger.Println("Registered catalog-app-defaults-set tool")
 
-	err = server.RegisterTool("list-repositories", "List available repositories by discovering them from existing catalog applications", func(args ListRepositoriesArgs) (*mcp_golang.ToolResponse, error) {
-		return listRepositories(taikunClient, args)
-	})
-	if err != nil {
-		logger.Fatalf("Failed to register list-repositories tool: %v", err)
-	}
-	logger.Println("Registered list-repositories tool")
-
-	err = server.RegisterTool("list-available-packages", "List all available packages from the package repository", func(args ListAvailablePackagesArgs) (*mcp_golang.ToolResponse, error) {
-		return listAvailablePackages(taikunClient, args)
-	})
-	if err != nil {
-		logger.Fatalf("Failed to register list-available-packages tool: %v", err)
-	}
-	logger.Println("Registered list-available-packages tool")
-
-	err = server.RegisterTool("install-app", "Install a new application instance", func(args InstallAppArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("app-install", "Install a new application instance with optional defaults and overrides", func(args InstallAppArgs) (*mcp_golang.ToolResponse, error) {
 		return installApp(taikunClient, args)
 	})
 	if err != nil {
-		logger.Fatalf("Failed to register install-app tool: %v", err)
+		logger.Fatalf("Failed to register app-install tool: %v", err)
 	}
-	logger.Println("Registered install-app tool")
+	logger.Println("Registered app-install tool")
 
 	err = server.RegisterTool("list-apps", "List application instances in a project", func(args ListAppsArgs) (*mcp_golang.ToolResponse, error) {
 		return listApps(taikunClient, args)

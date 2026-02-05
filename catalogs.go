@@ -504,24 +504,88 @@ func listCatalogApps(client *taikungoclient.Client, args ListCatalogAppsArgs) (*
 	return createJSONResponse(listResp), nil
 }
 
-func getCatalogAppParameters(client *taikungoclient.Client, args GetCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+func getCatalogAppParameters(client *taikungoclient.Client, args GetCatalogAppParamsArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
-	req := client.Client.CatalogAppAPI.CatalogAppParamDetails(ctx, args.CatalogAppID)
-	if args.IsTaikunLink != nil {
-		req = req.IsTaikunLink(*args.IsTaikunLink)
+	cmd := taikuncore.NewGetCatalogAppValueAutocompleteCommand()
+	if args.CatalogAppID == 0 && (args.PackageID == "" || args.Version == "") {
+		errorResp := ErrorResponse{
+			Error: "Provide catalogAppId or both packageId and version",
+		}
+		return createJSONResponse(errorResp), nil
 	}
 
-	params, response, err := req.Execute()
+	if args.CatalogAppID != 0 {
+		cmd.SetCatalogAppId(args.CatalogAppID)
+	}
+
+	if (args.PackageID == "" || args.Version == "") && args.CatalogAppID != 0 {
+		details, response, err := client.Client.CatalogAppAPI.CatalogAppDetails(ctx, args.CatalogAppID).Execute()
+		if err != nil {
+			return createError(response, err), nil
+		}
+		if errorResp := checkResponse(response, "get catalog app details"); errorResp != nil {
+			return errorResp, nil
+		}
+
+		if details != nil {
+			if value, ok := details.GetPackageIdOk(); ok && value != nil {
+				args.PackageID = *value
+			}
+			if value, ok := details.GetVersionOk(); ok && value != nil {
+				args.Version = *value
+			}
+		}
+	}
+
+	if args.PackageID == "" {
+		errorResp := ErrorResponse{
+			Error: "Package ID is required when catalogAppId is not provided",
+		}
+		return createJSONResponse(errorResp), nil
+	}
+	cmd.SetPackageId(args.PackageID)
+
+	if args.Version == "" {
+		errorResp := ErrorResponse{
+			Error: "Version is required when catalogAppId is not provided",
+		}
+		return createJSONResponse(errorResp), nil
+	}
+	cmd.SetVersion(args.Version)
+
+	availableParams, response, err := client.Client.PackageAPI.PackageValueAutocomplete(ctx).
+		GetCatalogAppValueAutocompleteCommand(*cmd).
+		Execute()
 	if err != nil {
 		return createError(response, err), nil
 	}
-
-	if errorResp := checkResponse(response, "get catalog app parameters"); errorResp != nil {
+	if errorResp := checkResponse(response, "get catalog app available parameters"); errorResp != nil {
 		return errorResp, nil
 	}
 
-	type CatalogAppParameterDetail struct {
+	var addedParams []taikuncore.CatalogAppParamsDetailsDto
+	if args.CatalogAppID != 0 {
+		addedParams, response, err = client.Client.CatalogAppAPI.CatalogAppParamDetails(ctx, args.CatalogAppID).Execute()
+		if err != nil {
+			return createError(response, err), nil
+		}
+		if errorResp := checkResponse(response, "get catalog app added parameters"); errorResp != nil {
+			return errorResp, nil
+		}
+	}
+
+	type AvailableParam struct {
+		Key          string   `json:"key,omitempty"`
+		Value        string   `json:"value,omitempty"`
+		Description  string   `json:"description,omitempty"`
+		Type         string   `json:"type,omitempty"`
+		IsQuestion   *bool    `json:"isQuestion,omitempty"`
+		Options      []string `json:"options,omitempty"`
+		IsTaikunLink *bool    `json:"isTaikunLink,omitempty"`
+	}
+
+	type AddedParam struct {
 		ID                          int32  `json:"id,omitempty"`
 		CatalogAppName              string `json:"catalogAppName,omitempty"`
 		Key                         string `json:"key,omitempty"`
@@ -533,10 +597,53 @@ func getCatalogAppParameters(client *taikungoclient.Client, args GetCatalogAppPa
 		IsTaikunLink                *bool  `json:"isTaikunLink,omitempty"`
 	}
 
-	details := make([]CatalogAppParameterDetail, 0, len(params))
-	for _, param := range params {
-		detail := CatalogAppParameterDetail{}
+	available := make([]AvailableParam, 0, len(availableParams))
+	for _, param := range availableParams {
+		if args.IsTaikunLink != nil {
+			if param.IsTaikunLink == nil || *param.IsTaikunLink != *args.IsTaikunLink {
+				continue
+			}
+		}
 
+		detail := AvailableParam{}
+		if value, ok := param.GetKeyOk(); ok && value != nil {
+			detail.Key = *value
+		}
+		if value, ok := param.GetValueOk(); ok && value != nil {
+			detail.Value = *value
+		}
+		if value, ok := param.GetDescriptionOk(); ok && value != nil {
+			detail.Description = *value
+		}
+		if value, ok := param.GetTypeOk(); ok && value != nil {
+			detail.Type = string(*value)
+		}
+		if value, ok := param.GetIsQuestionOk(); ok {
+			detail.IsQuestion = value
+		}
+		if len(param.Options) > 0 {
+			detail.Options = param.Options
+		}
+		if value, ok := param.GetIsTaikunLinkOk(); ok {
+			detail.IsTaikunLink = value
+		}
+
+		available = append(available, detail)
+	}
+
+	added := make([]AddedParam, 0, len(addedParams))
+	for _, param := range addedParams {
+		if args.IsTaikunLink != nil {
+			if value, ok := param.GetIsTaikunLinkOk(); ok {
+				if value == nil || *value != *args.IsTaikunLink {
+					continue
+				}
+			} else {
+				continue
+			}
+		}
+
+		detail := AddedParam{}
 		if param.Id != nil {
 			detail.ID = *param.Id
 		}
@@ -565,30 +672,38 @@ func getCatalogAppParameters(client *taikungoclient.Client, args GetCatalogAppPa
 			detail.IsTaikunLink = value
 		}
 
-		details = append(details, detail)
+		added = append(added, detail)
 	}
 
-	message := fmt.Sprintf("Found %d parameters for catalog app ID %d", len(details), args.CatalogAppID)
-	if len(details) == 0 {
-		message = fmt.Sprintf("No parameters found for catalog app ID %d", args.CatalogAppID)
+	message := fmt.Sprintf("Found %d available parameters and %d added parameters", len(available), len(added))
+	if len(available) == 0 && len(added) == 0 {
+		message = "No parameters found"
 	}
 
 	listResp := struct {
-		CatalogAppID int32                      `json:"catalogAppId"`
-		Parameters   []CatalogAppParameterDetail `json:"parameters"`
-		Total        int                        `json:"total"`
-		Message      string                     `json:"message"`
+		CatalogAppID   int32            `json:"catalogAppId,omitempty"`
+		PackageID      string           `json:"packageId,omitempty"`
+		Version        string           `json:"version,omitempty"`
+		Available      []AvailableParam `json:"available"`
+		Added          []AddedParam     `json:"added"`
+		TotalAvailable int              `json:"totalAvailable"`
+		TotalAdded     int              `json:"totalAdded"`
+		Message        string           `json:"message"`
 	}{
-		CatalogAppID: args.CatalogAppID,
-		Parameters:   details,
-		Total:        len(details),
-		Message:      message,
+		CatalogAppID:   args.CatalogAppID,
+		PackageID:      args.PackageID,
+		Version:        args.Version,
+		Available:      available,
+		Added:          added,
+		TotalAvailable: len(available),
+		TotalAdded:     len(added),
+		Message:        message,
 	}
 
 	return createJSONResponse(listResp), nil
 }
 
-func updateCatalogAppParameters(client *taikungoclient.Client, args UpdateCatalogAppParametersArgs) (*mcp_golang.ToolResponse, error) {
+func updateCatalogAppParameters(client *taikungoclient.Client, args SetCatalogAppDefaultParamsArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
 
 	updateCmd := taikuncore.NewEditCatalogAppParamCommand()
@@ -801,6 +916,112 @@ func listAvailablePackages(client *taikungoclient.Client, args ListAvailablePack
 		Packages: packages,
 		Total:    total,
 		Message:  message,
+	}
+
+	return createJSONResponse(listResp), nil
+}
+
+func listAvailableApps(client *taikungoclient.Client, args ListAvailableAppsArgs) (*mcp_golang.ToolResponse, error) {
+	ctx := context.Background()
+
+	req := client.Client.PackageAPI.PackageList(ctx)
+
+	if args.Limit > 0 {
+		req = req.Limit(args.Limit)
+	}
+	if args.Offset > 0 {
+		req = req.Offset(args.Offset)
+	}
+	if args.Search != "" {
+		req = req.Search(args.Search)
+	}
+
+	packageList, response, err := req.Execute()
+	if err != nil {
+		return createError(response, err), nil
+	}
+
+	if errorResp := checkResponse(response, "list available apps"); errorResp != nil {
+		return errorResp, nil
+	}
+
+	type AvailableAppInfo struct {
+		PackageID      string `json:"packageId,omitempty"`
+		Name           string `json:"name,omitempty"`
+		Repository     string `json:"repository,omitempty"`
+		Version        string `json:"version,omitempty"`
+		AppVersion     string `json:"appVersion,omitempty"`
+		Description    string `json:"description,omitempty"`
+		CatalogAppID   int32  `json:"catalogAppId,omitempty"`
+		CatalogID      int32  `json:"catalogId,omitempty"`
+		InstalledCount int32  `json:"installedInstanceCount,omitempty"`
+		IsAdded        *bool  `json:"isAdded,omitempty"`
+		Deprecated     *bool  `json:"deprecated,omitempty"`
+	}
+
+	var apps []AvailableAppInfo
+	if packageList != nil && len(packageList.Data) > 0 {
+		for _, pkg := range packageList.Data {
+			app := AvailableAppInfo{}
+
+			if value, ok := pkg.GetPackageIdOk(); ok && value != nil {
+				app.PackageID = *value
+			}
+			if value, ok := pkg.GetNameOk(); ok && value != nil {
+				app.Name = *value
+			}
+			if pkg.Repository != nil && pkg.Repository.Name.IsSet() && pkg.Repository.Name.Get() != nil {
+				app.Repository = *pkg.Repository.Name.Get()
+			}
+			if value, ok := pkg.GetVersionOk(); ok && value != nil {
+				app.Version = *value
+			}
+			if value, ok := pkg.GetAppVersionOk(); ok && value != nil {
+				app.AppVersion = *value
+			}
+			if value, ok := pkg.GetDescriptionOk(); ok && value != nil {
+				app.Description = *value
+			}
+			if value, ok := pkg.GetCatalogAppIdOk(); ok && value != nil {
+				app.CatalogAppID = *value
+			}
+			if value, ok := pkg.GetCatalogIdOk(); ok && value != nil {
+				app.CatalogID = *value
+			}
+			if value, ok := pkg.GetInstalledInstanceCountOk(); ok && value != nil {
+				app.InstalledCount = *value
+			}
+			if value, ok := pkg.GetIsAddedOk(); ok {
+				app.IsAdded = value
+			}
+			if pkg.Deprecated != nil {
+				app.Deprecated = pkg.Deprecated
+			}
+
+			if args.Repository != "" && app.Repository != args.Repository {
+				continue
+			}
+
+			apps = append(apps, app)
+		}
+	}
+
+	message := fmt.Sprintf("Found %d available apps", len(apps))
+	if len(apps) == 0 {
+		message = "No available apps found"
+	}
+	if args.Repository != "" {
+		message += fmt.Sprintf(" in repository '%s'", args.Repository)
+	}
+
+	listResp := struct {
+		Apps    []AvailableAppInfo `json:"apps"`
+		Total   int                `json:"total"`
+		Message string             `json:"message"`
+	}{
+		Apps:    apps,
+		Total:   len(apps),
+		Message: message,
 	}
 
 	return createJSONResponse(listResp), nil
