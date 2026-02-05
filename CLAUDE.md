@@ -71,6 +71,7 @@ When unsure about API response fields:
 - **Pagination**: Most list APIs support `limit`, `offset`, and `search` parameters
 - **Error Handling**: **ALWAYS use `createError()` for ALL Cloudera Cloud Factory API errors** - provides clear, detailed error messages from the API. Use `ErrorResponse` only for custom validation errors
 - **Kubeconfig TTL**: When creating kubeconfigs, use short expirations (around 60 minutes) unless the user explicitly requests longer.
+- **Kubeconfig Storage**: Prefer saving kubeconfigs in temporary directories (e.g., `/tmp`) unless the user requests a specific path.
 - **Cloud Credential Types**: Treat AWS/GCP/Azure as public clouds; OpenStack/Proxmox/Zadara/vSphere as private clouds; OpenShift/Generic K8s as Kubernetes clusters.
 - **GCP Flavors**: Avoid machine types that support only hyperdisk attachments; they will fail to deploy.
 - **AWS LoadBalancer**: When creating LoadBalancer Services on AWS, set `service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance` to avoid ENI resolution issues with pod IP targets.
