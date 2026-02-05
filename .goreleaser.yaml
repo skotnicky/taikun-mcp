@@ -3,6 +3,8 @@
 
 version: 2
 
+project_name: cloudera-cloud-factory-mcp
+
 before:
   hooks:
     # Clean up before building

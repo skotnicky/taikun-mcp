@@ -22,7 +22,7 @@ var (
 
 var (
 	logger       *log.Logger
-	logFilePath  = "/tmp/taikun_mcp_server.log"
+	logFilePath  = "/tmp/cloudera_cloud_factory_mcp_server.log"
 	taikunClient *taikungoclient.Client
 )
 
@@ -368,7 +368,7 @@ func initLogger() {
 	if err != nil {
 		os.Exit(1)
 	}
-	logger = log.New(logFile, "[taikun-mcp] ", log.LstdFlags|log.Lshortfile)
+	logger = log.New(logFile, "[cloudera-cloud-factory-mcp] ", log.LstdFlags|log.Lshortfile)
 	logger.Println("Logger initialized")
 }
 
