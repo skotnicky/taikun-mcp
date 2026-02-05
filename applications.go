@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
 	"time"
 
@@ -73,45 +74,12 @@ func waitForAppReady(client *taikungoclient.Client, projectAppID int32, timeoutS
 			return fmt.Errorf("timeout waiting for application ID %d after %v", projectAppID, timeout)
 		}
 
-		// Query the application status using list instead of details to avoid unmarshaling issues
-		// We use the raw response if unmarshaling fails due to API/client mismatch
-		request := client.Client.ProjectAppsAPI.ProjectappList(ctx)
-		appList, response, err := request.Execute()
-
-		if response != nil && (response.StatusCode < 200 || response.StatusCode >= 300) {
+		status, found, response, err := fetchProjectAppStatus(ctx, client, projectAppID)
+		if response != nil && (response.StatusCode < 200 || response.StatusCode >= 300) && response.StatusCode != http.StatusNotFound {
 			return taikungoclient.CreateError(response, err)
 		}
-
-		var status string
-		found := false
-
 		if err != nil {
-			// If unmarshaling failed, try to parse the raw body
-			if response != nil && response.Body != nil {
-				bodyBytes, readErr := io.ReadAll(response.Body)
-				if readErr == nil {
-					body := string(bodyBytes)
-					// Use gjson to find the app status in the list
-					result := gjson.Get(body, fmt.Sprintf("data.#(id==%d).status", projectAppID))
-					if result.Exists() {
-						status = result.String()
-						found = true
-					}
-				}
-			}
-			if !found {
-				return fmt.Errorf("error checking application status: %v", err)
-			}
-		} else {
-			if appList != nil {
-				for _, app := range appList.Data {
-					if app.GetId() == projectAppID {
-						status = string(app.GetStatus())
-						found = true
-						break
-					}
-				}
-			}
+			return fmt.Errorf("error checking application status: %v", err)
 		}
 
 		if !found {
@@ -140,6 +108,37 @@ func waitForAppReady(client *taikungoclient.Client, projectAppID int32, timeoutS
 		// Wait before next poll
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func fetchProjectAppStatus(ctx context.Context, client *taikungoclient.Client, projectAppID int32) (string, bool, *http.Response, error) {
+	appDetails, response, err := client.Client.ProjectAppsAPI.ProjectappDetails(ctx, projectAppID).Execute()
+	if err == nil && appDetails != nil {
+		return string(appDetails.GetStatus()), true, response, nil
+	}
+
+	if response != nil {
+		if response.StatusCode == http.StatusNotFound {
+			return "", false, response, nil
+		}
+		if response.StatusCode >= 300 {
+			return "", false, response, err
+		}
+	}
+
+	if response != nil && response.Body != nil {
+		bodyBytes, readErr := io.ReadAll(response.Body)
+		if readErr == nil {
+			body := string(bodyBytes)
+			if statusResult := gjson.Get(body, "status"); statusResult.Exists() {
+				return statusResult.String(), true, response, nil
+			}
+			if statusResult := gjson.Get(body, "data.status"); statusResult.Exists() {
+				return statusResult.String(), true, response, nil
+			}
+		}
+	}
+
+	return "", false, response, err
 }
 
 func installApp(client *taikungoclient.Client, args InstallAppArgs) (*mcp_golang.ToolResponse, error) {
