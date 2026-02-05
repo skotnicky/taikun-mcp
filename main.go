@@ -232,12 +232,13 @@ type BindFlavorsArgs struct {
 }
 
 type AddServerArgs struct {
-	ProjectId int32  `json:"projectId" jsonschema:"description=The ID of the project to add the server to"`
-	Name      string `json:"name" jsonschema:"description=The name of the server"`
-	Role      string `json:"role" jsonschema:"description=The role of the server (Bastion, Kubemaster, Kubeworker)"`
-	Flavor    string `json:"flavor" jsonschema:"description=The flavor name for the server"`
-	DiskSize  int64  `json:"diskSize,omitempty" jsonschema:"description=The disk size in GB (optional)"`
-	Count     int32  `json:"count,omitempty" jsonschema:"description=Number of servers to add (default: 1)"`
+	ProjectId            int32  `json:"projectId" jsonschema:"description=The ID of the project to add the server to"`
+	Name                 string `json:"name" jsonschema:"description=The name of the server"`
+	Role                 string `json:"role" jsonschema:"description=The role of the server (Bastion, Kubemaster, Kubeworker)"`
+	Flavor               string `json:"flavor" jsonschema:"description=The flavor name for the server"`
+	DiskSize             int64  `json:"diskSize,omitempty" jsonschema:"description=The disk size in GB (optional)"`
+	Count                int32  `json:"count,omitempty" jsonschema:"description=Number of servers to add (default: 1)"`
+	VerifyTimeoutSeconds int32  `json:"verifyTimeoutSeconds,omitempty" jsonschema:"description=Seconds to wait for server verification (default: 300)"`
 }
 
 type CommitProjectArgs struct {

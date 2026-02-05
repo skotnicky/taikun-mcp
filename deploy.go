@@ -3,11 +3,31 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/itera-io/taikungoclient"
 	taikuncore "github.com/itera-io/taikungoclient/client"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 )
+
+var (
+	projectServerAddLocks   = map[int32]*sync.Mutex{}
+	projectServerAddLocksMu sync.Mutex
+)
+
+func getProjectServerAddLock(projectId int32) *sync.Mutex {
+	projectServerAddLocksMu.Lock()
+	defer projectServerAddLocksMu.Unlock()
+
+	lock, ok := projectServerAddLocks[projectId]
+	if !ok {
+		lock = &sync.Mutex{}
+		projectServerAddLocks[projectId] = lock
+	}
+	return lock
+}
 
 func bindFlavorsToProject(client *taikungoclient.Client, args BindFlavorsArgs) (*mcp_golang.ToolResponse, error) {
 	ctx := context.Background()
@@ -34,6 +54,10 @@ func bindFlavorsToProject(client *taikungoclient.Client, args BindFlavorsArgs) (
 }
 
 func addServerToProject(client *taikungoclient.Client, args AddServerArgs) (*mcp_golang.ToolResponse, error) {
+	lock := getProjectServerAddLock(args.ProjectId)
+	lock.Lock()
+	defer lock.Unlock()
+
 	ctx := context.Background()
 
 	serverDto := taikuncore.NewServerForCreateDto()
@@ -41,7 +65,9 @@ func addServerToProject(client *taikungoclient.Client, args AddServerArgs) (*mcp
 
 	role, err := taikuncore.NewCloudRoleFromValue(args.Role)
 	if err != nil {
-		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Invalid role: %v", err))), nil
+		return createJSONResponse(ErrorResponse{
+			Error: fmt.Sprintf("Invalid role: %v", err),
+		}), nil
 	}
 	serverDto.SetRole(*role)
 
@@ -70,9 +96,89 @@ func addServerToProject(client *taikungoclient.Client, args AddServerArgs) (*mcp
 		return errorResp, nil
 	}
 
-	return createJSONResponse(map[string]string{
-		"message": fmt.Sprintf("Successfully added %d server(s) of type %s with flavor %s to project %d", count, args.Role, args.Flavor, args.ProjectId),
-	}), nil
+	type AddServerResponse struct {
+		Message  string          `json:"message"`
+		Success  bool            `json:"success"`
+		Verified bool            `json:"verified"`
+		Expected int32           `json:"expected"`
+		Found    int32           `json:"found"`
+		Servers  []ServerSummary `json:"servers,omitempty"`
+	}
+
+	verifyTimeout := args.VerifyTimeoutSeconds
+	if verifyTimeout <= 0 {
+		verifyTimeout = 300
+	}
+	verifyDeadline := time.Now().Add(time.Duration(verifyTimeout) * time.Second)
+	var matched []ServerSummary
+	for {
+		serversResp, listHTTPResponse, listErr := client.Client.ServersAPI.ServersDetails(ctx, args.ProjectId).Execute()
+		if listErr != nil {
+			return createError(listHTTPResponse, listErr), nil
+		}
+		if listHTTPResponse == nil {
+			return createJSONResponse(ErrorResponse{
+				Error: "Failed to verify server creation: no response received",
+			}), nil
+		}
+		if listHTTPResponse.StatusCode < 200 || listHTTPResponse.StatusCode >= 300 {
+			return createError(listHTTPResponse, fmt.Errorf("failed to verify server creation")), nil
+		}
+
+		matched = matched[:0]
+		if serversResp != nil {
+			for _, server := range serversResp.Data {
+				serverName := server.GetName()
+				if args.Name != "" {
+					if count == 1 && serverName != args.Name {
+						continue
+					}
+					if count > 1 && !strings.HasPrefix(serverName, args.Name) {
+						continue
+					}
+				}
+				if args.Role != "" && string(server.GetRole()) != args.Role {
+					continue
+				}
+				if args.Flavor != "" && server.GetFlavor() != args.Flavor {
+					continue
+				}
+
+				matched = append(matched, ServerSummary{
+					ID:        server.GetId(),
+					Name:      serverName,
+					Role:      string(server.GetRole()),
+					Status:    server.GetStatus(),
+					IPAddress: server.GetIpAddress(),
+					Flavor:    server.GetFlavor(),
+				})
+			}
+		}
+
+		if int32(len(matched)) >= count {
+			return createJSONResponse(AddServerResponse{
+				Message:  fmt.Sprintf("Successfully added %d server(s) of type %s with flavor %s to project %d", count, args.Role, args.Flavor, args.ProjectId),
+				Success:  true,
+				Verified: true,
+				Expected: count,
+				Found:    int32(len(matched)),
+				Servers:  matched,
+			}), nil
+		}
+
+		if time.Now().After(verifyDeadline) {
+			return createJSONResponse(AddServerResponse{
+				Message:  fmt.Sprintf("Server creation request accepted but not verified within timeout (expected %d)", count),
+				Success:  false,
+				Verified: false,
+				Expected: count,
+				Found:    int32(len(matched)),
+				Servers:  matched,
+			}), nil
+		}
+
+		time.Sleep(5 * time.Second)
+	}
 }
 
 func commitProject(client *taikungoclient.Client, args CommitProjectArgs) (*mcp_golang.ToolResponse, error) {
