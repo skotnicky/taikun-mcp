@@ -633,7 +633,7 @@ func main() {
 	}
 	logger.Println("Registered create-kubeconfig tool")
 
-	err = server.RegisterTool("get-kubeconfig", "Retrieve the kubeconfig content for a project", func(args GetKubeConfigArgs) (*mcp_golang.ToolResponse, error) {
+	err = server.RegisterTool("get-kubeconfig", "Retrieve the kubeconfig content for a project (optionally save as YAML)", func(args GetKubeConfigArgs) (*mcp_golang.ToolResponse, error) {
 		return getKubeConfig(taikunClient, args)
 	})
 	if err != nil {

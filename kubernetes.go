@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -351,6 +353,24 @@ func normalizeYamlOutput(payload string) string {
 	return strings.ReplaceAll(payload, "\r\n", "\n")
 }
 
+func normalizeKubeconfigYaml(payload string) string {
+	normalized := strings.ReplaceAll(payload, "\r\n", "\n")
+	lines := strings.Split(normalized, "\n")
+	for i, line := range lines {
+		trimmedLeft := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmedLeft, "api-version:") {
+			indent := line[:len(line)-len(trimmedLeft)]
+			lines[i] = indent + "apiVersion:" + strings.TrimPrefix(trimmedLeft, "api-version:")
+			break
+		}
+	}
+	normalized = strings.Join(lines, "\n")
+	if normalized != "" && !strings.HasSuffix(normalized, "\n") {
+		normalized += "\n"
+	}
+	return normalized
+}
+
 func validateKubernetesYaml(payload string) error {
 	decoder := yaml.NewYAMLOrJSONDecoder(strings.NewReader(payload), 4096)
 	for {
@@ -425,7 +445,8 @@ type CreateKubeConfigArgs struct {
 }
 
 type GetKubeConfigArgs struct {
-	ProjectID int32 `json:"projectId" jsonschema:"required,description=The project ID to get the kubeconfig for"`
+	ProjectID int32  `json:"projectId" jsonschema:"required,description=The project ID to get the kubeconfig for"`
+	SavePath  string `json:"savePath,omitempty" jsonschema:"description=Optional path to save kubeconfig as a YAML file"`
 }
 
 type ListKubernetesResourcesArgs struct {
@@ -599,11 +620,33 @@ func getKubeConfig(client *taikungoclient.Client, args GetKubeConfigArgs) (*mcp_
 
 	type KubeConfigResponseData struct {
 		KubeConfig string `json:"kubeConfig"`
+		SavedPath  string `json:"savedPath,omitempty"`
 		Success    bool   `json:"success"`
 	}
 
+	normalizedKubeconfig := normalizeKubeconfigYaml(kubeconfig)
+
+	var savedPath string
+	if args.SavePath != "" {
+		dir := filepath.Dir(args.SavePath)
+		if dir != "." {
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				return createJSONResponse(ErrorResponse{
+					Error: fmt.Sprintf("Failed to create directory for kubeconfig: %v", err),
+				}), nil
+			}
+		}
+		if err := os.WriteFile(args.SavePath, []byte(normalizedKubeconfig), 0o600); err != nil {
+			return createJSONResponse(ErrorResponse{
+				Error: fmt.Sprintf("Failed to write kubeconfig file: %v", err),
+			}), nil
+		}
+		savedPath = args.SavePath
+	}
+
 	resp := KubeConfigResponseData{
-		KubeConfig: strings.ReplaceAll(kubeconfig, "\r\n", "\n"),
+		KubeConfig: normalizedKubeconfig,
+		SavedPath:  savedPath,
 		Success:    true,
 	}
 
